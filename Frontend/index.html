@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartSure</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div>
+        <div class="brand brand-large">
+          <span class="brand-dot"></span>
+          <span>SmartSure</span>
+        </div>
+        <p class="sidebar-copy">Modern insurance portal connected through the gateway.</p>
+      </div>
+
+      <label class="stack">
+        <span class="label">Gateway URL</span>
+        <input id="gatewayUrl" class="input" type="url" value="http://localhost:5000" />
+      </label>
+
+      <div class="stack">
+        <button id="saveGatewayBtn" class="btn btn-primary full">Save Gateway</button>
+        <button id="testConnectionBtn" class="btn btn-light full">Test Connection</button>
+      </div>
+
+      <div class="session-box">
+        <div class="session-row">
+          <span class="label">Connection</span>
+          <span id="connectionBadge" class="badge badge-warn">Idle</span>
+        </div>
+        <div class="session-row">
+          <span class="label">Token</span>
+          <span id="tokenBadge" class="badge badge-muted">None</span>
+        </div>
+        <div class="session-row">
+          <span class="label">Role</span>
+          <span id="roleBadge" class="badge badge-muted">Guest</span>
+        </div>
+      </div>
+
+      <nav class="side-nav">
+        <a href="#overview">Overview</a>
+        <a href="#auth">Auth</a>
+        <a href="#policies">Policies</a>
+        <a href="#claims">Claims</a>
+        <a href="#admin">Admin</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <section class="hero card" id="overview">
+        <div>
+          <p class="eyebrow">Insurance Management System</p>
+          <h1>Focused, modern frontend for the SmartSure backend.</h1>
+          <p class="subtext">
+            This UI keeps the experience clean and practical: auth, policies, claims, and admin tools
+            in one responsive dashboard connected through the gateway.
+          </p>
+          <div class="cta-row">
+            <button id="connectQuickBtn" class="btn btn-primary">Connect Backend</button>
+            <a class="btn btn-light" href="#auth">Open Auth</a>
+          </div>
+        </div>
+
+        <div class="hero-panel">
+          <article class="stat">
+            <strong>4</strong>
+            <span>Microservices</span>
+          </article>
+          <article class="stat">
+            <strong>JWT</strong>
+            <span>Secure gateway flow</span>
+          </article>
+          <article class="stat">
+            <strong>MQ</strong>
+            <span>Event-driven choreography</span>
+          </article>
+          <article class="stat">
+            <strong>OTP</strong>
+            <span>Registration verification</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel card" id="auth">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Auth Module</p>
+            <h2>Register, verify OTP, login, and manage profile</h2>
+          </div>
+          <button id="googleLoginBtn" class="btn btn-light">Google Login</button>
+        </div>
+
+        <div class="grid two-up">
+          <article class="subcard">
+            <h3>Register</h3>
+            <form id="registerForm" class="form-grid">
+              <input class="input" name="fullName" placeholder="Full name" required />
+              <input class="input" name="email" type="email" placeholder="Email" required />
+              <input class="input" name="password" type="password" placeholder="Password" required />
+              <input class="input" name="phoneNumber" placeholder="Phone number" />
+              <input class="input span-2" name="address" placeholder="Address" />
+              <button class="btn btn-primary span-2" type="submit">Send OTP</button>
+            </form>
+
+            <div class="split-form">
+              <form id="verifyOtpForm" class="inline-form">
+                <input class="input" name="email" type="email" placeholder="Email" required />
+                <input class="input" name="otp" inputmode="numeric" maxlength="6" placeholder="OTP" required />
+                <button class="btn btn-light" type="submit">Verify OTP</button>
+              </form>
+              <form id="resendOtpForm" class="inline-form">
+                <input class="input" name="email" type="email" placeholder="Email" required />
+                <button class="btn btn-light" type="submit">Resend OTP</button>
+              </form>
+            </div>
+          </article>
+
+          <article class="subcard">
+            <h3>Login and Password</h3>
+            <form id="loginForm" class="form-grid">
+              <input class="input" name="email" type="email" placeholder="Email" required />
+              <input class="input" name="password" type="password" placeholder="Password" required />
+              <button class="btn btn-primary span-2" type="submit">Login</button>
+            </form>
+
+            <form id="forgotForm" class="inline-form top-gap">
+              <input class="input" name="email" type="email" placeholder="Forgot password email" required />
+              <button class="btn btn-light" type="submit">Send Reset OTP</button>
+            </form>
+
+            <form id="resetForm" class="form-grid top-gap">
+              <input class="input" name="email" type="email" placeholder="Email" required />
+              <input class="input" name="token" placeholder="Reset token" required />
+              <input class="input" name="newPassword" type="password" placeholder="New password" required />
+              <button class="btn btn-light span-2" type="submit">Reset Password</button>
+            </form>
+          </article>
+
+          <article class="subcard">
+            <h3>Profile</h3>
+            <div class="action-row">
+              <button id="loadProfileBtn" class="btn btn-light">Load Profile</button>
+              <button id="logoutBtn" class="btn btn-ghost">Logout</button>
+            </div>
+            <form id="profileForm" class="form-grid top-gap">
+              <input class="input" name="fullName" placeholder="Full name" required />
+              <input class="input" name="phoneNumber" placeholder="Phone number" />
+              <input class="input span-2" name="address" placeholder="Address" />
+              <button class="btn btn-primary span-2" type="submit">Update Profile</button>
+            </form>
+            <div id="profileOutput" class="response-box"></div>
+          </article>
+
+          <article class="subcard">
+            <h3>Auth Response</h3>
+            <div id="authOutput" class="response-box tall"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel card" id="policies">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Policy Module</p>
+            <h2>Products, premium calculation, purchase, and policy history</h2>
+          </div>
+          <div class="action-row">
+            <button id="loadProductsBtn" class="btn btn-light">Refresh Products</button>
+            <button id="loadMyPoliciesBtn" class="btn btn-light">Refresh My Policies</button>
+          </div>
+        </div>
+
+        <div class="grid two-up">
+          <article class="subcard">
+            <h3>Products</h3>
+            <div id="productsTable" class="table-wrap"></div>
+          </article>
+
+          <article class="subcard">
+            <h3>Premium Calculator</h3>
+            <form id="premiumForm" class="form-grid">
+              <input class="input" name="productId" type="number" placeholder="Product ID" required />
+              <input class="input" name="coverageAmount" type="number" step="0.01" placeholder="Coverage amount"
+                required />
+              <input class="input" name="termMonths" type="number" placeholder="Term months" required />
+              <button class="btn btn-primary span-2" type="submit">Calculate</button>
+            </form>
+            <div id="premiumOutput" class="response-box"></div>
+          </article>
+
+          <article class="subcard">
+            <h3>Purchase Policy</h3>
+            <form id="purchaseForm" class="form-grid">
+              <input class="input" name="productId" type="number" placeholder="Product ID" required />
+              <input class="input" name="coverageAmount" type="number" step="0.01" placeholder="Coverage amount"
+                required />
+              <input class="input" name="termMonths" type="number" placeholder="Term months" required />
+              <input class="input" name="insuranceDate" type="date" />
+              <button class="btn btn-primary span-2" type="submit">Purchase</button>
+            </form>
+            <div id="purchaseOutput" class="response-box"></div>
+          </article>
+
+          <article class="subcard">
+            <h3>My Policies</h3>
+            <div id="myPoliciesTable" class="table-wrap"></div>
+          </article>
+
+          <article class="subcard">
+            <h3>Admin Product Controls</h3>
+            <form id="createProductForm" class="form-grid">
+              <input class="input" name="typeName" placeholder="Type name" required />
+              <input class="input" name="subTypeName" placeholder="Sub type name" required />
+              <input class="input" name="basePremium" type="number" step="0.01" placeholder="Base premium" required />
+              <button class="btn btn-light span-2" type="submit">Create Product</button>
+            </form>
+            <form id="updateProductForm" class="form-grid top-gap">
+              <input class="input" name="productId" type="number" placeholder="Product ID" required />
+              <input class="input" name="typeName" placeholder="Type name" required />
+              <input class="input" name="subTypeName" placeholder="Sub type name" required />
+              <input class="input" name="basePremium" type="number" step="0.01" placeholder="Base premium" required />
+              <button class="btn btn-light span-2" type="submit">Update Product</button>
+            </form>
+            <form id="deleteProductForm" class="inline-form top-gap">
+              <input class="input" name="productId" type="number" placeholder="Product ID" required />
+              <button class="btn btn-ghost" type="submit">Delete Product</button>
+            </form>
+          </article>
+
+          <article class="subcard">
+            <h3>Admin Policies</h3>
+            <div class="action-row">
+              <button id="loadAdminPoliciesBtn" class="btn btn-light">Refresh Admin Policies</button>
+            </div>
+            <div id="adminPoliciesTable" class="table-wrap"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel card" id="claims">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Claims Module</p>
+            <h2>Open claims, upload documents, and review claim status</h2>
+          </div>
+          <div class="action-row">
+            <button id="loadMyClaimsBtn" class="btn btn-light">Refresh My Claims</button>
+            <button id="loadAdminClaimsBtn" class="btn btn-light">Refresh Admin Claims</button>
+          </div>
+        </div>
+
+        <div class="grid two-up">
+          <article class="subcard">
+            <h3>Create Claim</h3>
+            <form id="createClaimForm" class="form-grid">
+              <input class="input" name="policyId" placeholder="Policy ID" required />
+              <input class="input span-2" name="description" placeholder="Description" required />
+              <input class="input" name="claimAmount" type="number" step="0.01" placeholder="Claim amount" required />
+              <button class="btn btn-primary span-2" type="submit">Create Claim</button>
+            </form>
+
+            <h3 class="section-title">Upload Document</h3>
+            <form id="uploadDocumentForm" class="form-grid">
+              <input class="input" name="claimId" placeholder="Claim ID" required />
+              <input class="input" name="fileName" placeholder="File name" required />
+              <input class="input" name="fileType" placeholder="pdf / jpg / png" required />
+              <input class="input" name="fileSizeKb" type="number" placeholder="File size KB" required />
+              <input class="input span-2" name="fileContent" type="file" accept=".pdf,.jpg,.jpeg,.png" required />
+              <button class="btn btn-light span-2" type="submit">Upload Document</button>
+            </form>
+          </article>
+
+          <article class="subcard">
+            <h3>My Claims</h3>
+            <div id="myClaimsTable" class="table-wrap"></div>
+            <h3 class="section-title">Claim Documents</h3>
+            <form id="loadDocumentsForm" class="inline-form">
+              <input class="input" name="claimId" placeholder="Claim ID" required />
+              <button class="btn btn-light" type="submit">Load Documents</button>
+            </form>
+            <div id="claimDocumentsTable" class="table-wrap top-gap"></div>
+          </article>
+
+          <article class="subcard">
+            <h3>Admin Claim Actions</h3>
+            <form id="claimReviewForm" class="form-grid">
+              <input class="input" name="claimId" placeholder="Claim ID" required />
+              <input class="input span-2" name="note" placeholder="Review note" />
+              <button class="btn btn-light span-2" type="submit">Mark Under Review</button>
+            </form>
+            <form id="claimApproveForm" class="form-grid top-gap">
+              <input class="input" name="claimId" placeholder="Claim ID" required />
+              <input class="input" name="approvedAmount" type="number" step="0.01" placeholder="Approved amount" />
+              <input class="input span-2" name="note" placeholder="Approval note" />
+              <button class="btn btn-light span-2" type="submit">Approve Claim</button>
+            </form>
+            <form id="claimRejectForm" class="form-grid top-gap">
+              <input class="input" name="claimId" placeholder="Claim ID" required />
+              <input class="input span-2" name="reason" placeholder="Rejection reason" required />
+              <button class="btn btn-ghost span-2" type="submit">Reject Claim</button>
+            </form>
+          </article>
+
+          <article class="subcard">
+            <h3>Admin Claims</h3>
+            <div id="adminClaimsTable" class="table-wrap"></div>
+          </article>
+
+          <article class="subcard">
+            <h3>Claims Output</h3>
+            <div id="claimOutput" class="response-box tall"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel card" id="admin">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Admin Module</p>
+            <h2>Dashboard stats, reports, export, and audit logs</h2>
+          </div>
+          <button id="loadStatsBtn" class="btn btn-light">Refresh Dashboard</button>
+        </div>
+
+        <div class="grid two-up">
+          <article class="subcard">
+            <h3>Dashboard Stats</h3>
+            <div id="statsGrid" class="stats-grid"></div>
+          </article>
+
+          <article class="subcard">
+            <h3>Policy Report</h3>
+            <form id="policyReportForm" class="form-grid">
+              <input class="input" name="from" type="date" />
+              <input class="input" name="to" type="date" />
+              <input class="input span-2" name="type" placeholder="Type filter" />
+              <button class="btn btn-light span-2" type="submit">Load Policy Report</button>
+            </form>
+            <div id="policyReportOutput" class="response-box"></div>
+          </article>
+
+          <article class="subcard">
+            <h3>Claims Report</h3>
+            <form id="claimsReportForm" class="form-grid">
+              <input class="input" name="from" type="date" />
+              <input class="input" name="to" type="date" />
+              <input class="input span-2" name="status" placeholder="Status filter" />
+              <button class="btn btn-light span-2" type="submit">Load Claims Report</button>
+            </form>
+            <div id="claimsReportOutput" class="response-box"></div>
+          </article>
+
+          <article class="subcard">
+            <h3>Revenue Report</h3>
+            <form id="revenueReportForm" class="form-grid">
+              <input class="input" name="from" type="date" />
+              <input class="input" name="to" type="date" />
+              <button class="btn btn-light span-2" type="submit">Load Revenue Report</button>
+            </form>
+            <div id="revenueReportOutput" class="response-box"></div>
+          </article>
+
+          <article class="subcard">
+            <h3>Audit Logs</h3>
+            <form id="auditLogsForm" class="form-grid">
+              <input class="input" name="from" type="date" />
+              <input class="input" name="to" type="date" />
+              <input class="input" name="action" placeholder="Action" />
+              <input class="input" name="entityType" placeholder="Entity type" />
+              <input class="input" name="page" type="number" value="1" />
+              <input class="input" name="pageSize" type="number" value="20" />
+              <button class="btn btn-light span-2" type="submit">Load Audit Logs</button>
+            </form>
+            <div id="auditLogsTable" class="table-wrap"></div>
+          </article>
+
+          <article class="subcard">
+            <h3>Export Report</h3>
+            <form id="exportReportForm" class="inline-form">
+              <input class="input" name="reportId" placeholder="Report ID" required />
+              <button class="btn btn-primary" type="submit">Download PDF</button>
+            </form>
+            <div id="adminOutput" class="response-box"></div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="footer container">
+    <span>Palette: #5465FF • #788BFF • #9BB1FF • #BFD7FF • #E2FDFF</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
+</section>
+</main>
+</div>
+
+<footer class="footer">
+  <span>SmartSure Insurance Management System &bull; Microservices &bull; JWT &bull; RabbitMQ</span>
+</footer>
+
+<script src="app.js"></script>
+</body>
+
+</html>

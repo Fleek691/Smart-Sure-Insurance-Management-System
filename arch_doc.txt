@@ -1,0 +1,711 @@
+
+SmartSure
+Insurance Management System
+Technical Architecture & Project Requirement Document
+
+Angular  •  ASP.NET Core 8  •  Microservices  •  Ocelot Gateway  •  SQL Server
+JWT  •  RabbitMQ  •  Event-Driven Choreography  •  Docker  •  Serilog  •  Google OAuth  •  Mega.nz
+
+Version 1.0  |  2025
+
+A. Application Overview
+SmartSure is an enterprise-grade, microservices-based insurance management platform that digitizes the complete insurance lifecycle. It enables customers to register, purchase policies, upload documents, and file claims through guided workflows. Admins manage products, verify claims, and generate operational reports.
+
+Tech Stack
+
+
+B. High-Level Design (HLD)
+System Architecture Diagram
+All Angular UI traffic flows exclusively through the Ocelot API Gateway. The gateway validates JWT, enforces rate-limiting, and routes to the appropriate microservice. Services communicate asynchronously via RabbitMQ events. Each service owns its isolated SQL Server database.
+
+
+Event-Driven Choreography Flow — Policy Purchase & Notifications
+Services communicate purely through RabbitMQ events — no service calls another directly. Each service publishes an event when something meaningful happens; interested services listen and react independently. This is choreography: decoupled, asynchronous, and resilient. There is no central orchestrator coordinating the flow.
+
+Key Design Decisions
+Repository Pattern: Controller → Service → Repository → DbContext in every microservice
+Dependency Injection: All services, repositories, and infrastructure registered via IServiceCollection
+Global Exception Handling: Custom middleware catches all unhandled exceptions, logs via Serilog, returns RFC 7807 ProblemDetails
+IMemoryCache: Applied on policy types listing, insurance product catalog, and user role lookups (5-min TTL)
+Polly in Ocelot: 3 retries with exponential backoff + circuit breaker (5 failures → 30s open)
+Serilog: Structured JSON logging to console + rolling file sink; includes CorrelationId per request
+
+
+C. Folder Structure
+Backend — Solution Structure
+
+docker-compose.yml (RabbitMQ)
+version: '3.8'
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: smartsure-rabbit
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+
+D. REST API Endpoints (per Service)
+All endpoints are prefixed by the Ocelot Gateway. Services run on localhost in dev. Swagger UI available at /swagger on each service port.
+
+1. Auth Service — :5001  |  /gateway/auth/*
+
+2. Policy Service — :5002  |  /gateway/policies/*
+
+3. Claims Service — :5003  |  /gateway/claims/*
+
+4. Admin / Reporting Service — :5004  |  /gateway/admin/*
+
+
+E. Database Design (SQL Server + EF Core Code-First)
+Each microservice owns its isolated SQL Server database with its own DbContext and migrations. Cross-service references are stored as plain GUID columns — NO foreign key constraints cross service boundaries. Data consistency is maintained via RabbitMQ events.
+
+
+DB 1 — SmartSure_AuthDb  (Auth Service :5001)
+Owns all identity data: users, roles, and credentials. JWT is stateless — no refresh token table. IMemoryCache is used for user role lookups to avoid repeated DB hits on every authenticated request.
+  Users
+
+  Passwords
+
+  Roles
+
+  UserRoles
+
+  PasswordResetTokens
+
+
+DB 2 — SmartSure_PolicyDb  (Policy Service :5002)
+Owns all insurance product definitions, customer policies, type-specific details (vehicle / home), premiums, and payments. UserId is a plain GUID referencing AuthDb — no FK enforced. InsuranceTypes and SubTypes are small lookup tables cached in IMemoryCache.
+  InsuranceTypes
+
+  InsuranceSubTypes
+
+  Policies
+
+  PolicyDetails
+
+  VehicleDetails
+
+  HomeDetails
+
+  Premiums
+
+  Payments
+
+
+DB 3 — SmartSure_ClaimsDb  (Claims Service :5003)
+Owns claim lifecycle and all claim-related documents. PolicyId and UserId are plain GUID references — no cross-DB FK. ClaimStatusHistory provides a full audit trail of every status transition.
+  Claims
+
+  ClaimDocuments
+
+  ClaimStatusHistory
+
+
+DB 4 — SmartSure_AdminDb  (Admin/Reporting Service :5004)
+Owns audit logs and report snapshots. Data is populated by consuming RabbitMQ events from other services — it never writes directly to other DBs. All cross-service IDs are plain GUIDs.
+  AuditLogs
+
+  Reports
+
+
+Cross-Service Reference Map
+All cross-service references use GUID — no FK constraints enforced across databases:
+
+
+F. Cross-Cutting Implementation Concepts
+1. Global Exception Middleware (SmartSure.Shared)
+ExceptionMiddleware lives in SmartSure.Shared — written once, used by all 4 services via project reference. Each service's Program.cs registers it with a single line. Custom exception types also live in Shared so any service can throw them and the middleware catches them uniformly.
+// SmartSure.Shared/Middleware/ExceptionMiddleware.cs
+using SmartSure.Shared.Exceptions;
+
+public class ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddleware> logger)
+{
+  public async Task InvokeAsync(HttpContext ctx) {
+    try { await next(ctx); }
+    catch (NotFoundException ex)      { await Write(ctx, 404, ex.Message); }
+    catch (ValidationException ex)    { await Write(ctx, 400, ex.Message); }
+    catch (UnauthorizedException ex)  { await Write(ctx, 401, ex.Message); }
+    catch (Exception ex) {
+      logger.LogError(ex, "Unhandled exception [{CorrelationId}]", ctx.TraceIdentifier);
+      await Write(ctx, 500, "An unexpected error occurred");
+    }
+  }
+  // Returns RFC 7807 ProblemDetails — never raw stack traces
+}
+
+// SmartSure.Shared/Exceptions/NotFoundException.cs
+public class NotFoundException(string message) : Exception(message);
+
+// SmartSure.Shared/Exceptions/ValidationException.cs
+public class ValidationException(string message) : Exception(message);
+
+// Each service Program.cs — one line, no duplication
+using SmartSure.Shared.Middleware;
+app.UseMiddleware<ExceptionMiddleware>();
+
+// Each service .csproj — project reference
+<ProjectReference Include="..\..\SmartSure.Shared\SmartSure.Shared.csproj" />
+
+2. JWT Configuration
+Issued by Auth Service on login; contains UserId, Email, Role, Expiry (60 min)
+Validated by Ocelot Gateway using shared secret — services trust Gateway headers
+Google OAuth: exchange Google ID token → verify → create/fetch AppUser → issue own JWT
+Refresh token: stored in client localStorage — stateless on the server, no DB table
+
+3. RabbitMQ — Event-Driven Choreography
+Services never call each other directly. Instead, each service publishes domain events to RabbitMQ queues; interested services subscribe and react independently. This keeps services fully decoupled — a consumer going down does not affect the publisher, and messages are retried automatically when the consumer recovers.
+
+4. Serilog Configuration (each service)
+Log.Logger = new LoggerConfiguration()
+  .Enrich.FromLogContext()
+  .Enrich.WithCorrelationId()
+  .WriteTo.Console(new JsonFormatter())
+  .WriteTo.File("logs/smartsure-.txt",
+      rollingInterval: RollingInterval.Day,
+      retainedFileCountLimit: 7)
+  .CreateLogger();
+
+5. IMemoryCache Usage
+Registered as a singleton via AddMemoryCache(). All keys follow a consistent naming convention. Cache is always invalidated on write — never serve stale data after a mutation.
+
+6. Mega.nz Document Upload Flow
+Customer uploads file via Claims Service POST /documents
+MegaNzService streams file to Mega.nz using the MegaApiClient SDK
+Returns a MegaNzFileId and share URL stored in ClaimDocuments table
+Admin views documents via the share URL during claim review
+On claim rejection/close, documents are retained for audit; deletion is admin-only
+
+7. SMTP Email Notifications (MailKit)
+
+8. Swagger Configuration (Swashbuckle 6.6.2 — each service)
+builder.Services.AddSwaggerGen(c => {
+  c.SwaggerDoc("v1", new OpenApiInfo { Title = "SmartSure.AuthService", Version = "v1" });
+  c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme {
+    Name = "Authorization", Type = SecuritySchemeType.Http,
+    Scheme = "bearer", BearerFormat = "JWT" });
+  c.AddSecurityRequirement(/* ... */);
+});
+// Access: http://localhost:5001/swagger
+
+9. Unit Testing (NUnit + Moq)
+Every Service class has a corresponding *Tests.cs file
+Repositories are mocked with Moq — no real DB hit in tests
+Test categories: Happy path, Validation errors, NotFound, Unauthorized
+Coverage target: ≥ 90% line coverage enforced via coverlet
+Run: dotnet test --collect:"XPlat Code Coverage"
+
+10. Repository Pattern — Dependency Chain
+// Registration in Program.cs (each service)
+builder.Services.AddScoped<IClaimRepository, ClaimRepository>();
+builder.Services.AddScoped<IClaimService, ClaimService>();
+builder.Services.AddScoped<IMegaNzService, MegaNzService>();
+builder.Services.AddMemoryCache();
+builder.Services.AddDbContext<ClaimsDbContext>(opt =>
+  opt.UseSqlServer(builder.Configuration.GetConnectionString("ClaimsDb")));
+
+
+G. Status Lifecycles & Interview Topics Summary
+Policy Lifecycle
+
+Claim Lifecycle
+
+Interview Topics Checklist
+
+Layer | Technology
+Frontend | Angular 17 — CoreModule, SharedModule, AuthModule, CustomerModule, ClaimsModule, AdminModule, ReportsModule
+Backend | ASP.NET Core 8 — 4 independent Microservices
+Gateway | Ocelot API Gateway with Polly for resilience (retry, circuit-breaker)
+Database | SQL Server + EF Core 8 Code-First (one DbContext per service)
+Auth | JWT Bearer Tokens + Google OAuth 2.0
+Messaging | RabbitMQ (via Docker) — event-driven choreography; services publish and consume events asynchronously
+Choreography | Services react to each other's events via RabbitMQ queues — no central orchestrator; fire-and-forget for notifications, audit logging, and status propagation
+File Storage | Mega.nz SDK — document uploads for claims
+Email | SMTP (MailKit) — notifications for policy and claim events
+Logging | Serilog — structured logging with console + file sinks
+Caching | IMemoryCache — policy types, products, user lookups
+Testing | NUnit + Moq (backend), Jasmine/Karma (frontend), ≥90% coverage
+API Docs | Swagger / Swashbuckle 6.6.2 — per service
+Containers | Docker — RabbitMQ; services run locally in dev
+
+┌─────────────────────────────────────────────────────────────┐
+│                   Angular Frontend (SPA)                    │
+│        Route Guards  |  Interceptors  |  Auth Module         │
+└───────────────────────────┬─────────────────────────────────┘
+                            │  HTTPS (all requests)            
+┌───────────────────────────▼─────────────────────────────────┐
+│          Ocelot API Gateway  (JWT Validation + Polly)        │
+│   /gateway/auth/*  /gateway/policies/*  /gateway/claims/*   │
+│                    /gateway/admin/*                          │
+└──┬──────────────┬──────────────┬──────────────┬─────────────┘
+   │              │              │              │              
+┌──▼──┐       ┌──▼──┐       ┌──▼──┐       ┌──▼──┐          
+│Auth │       │Pol. │       │Clm. │       │Adm. │          
+│Svc  │       │Mgmt │       │Svc  │       │Rpt  │          
+│:5001│       │:5002│       │:5003│       │:5004│          
+└──┬──┘       └──┬──┘       └──┬──┘       └──┬──┘          
+   │  DB1         │  DB2         │  DB3         │  DB4        
+                                                              
+   └──────────────┴──────────────┴──────────────┘            
+                     RabbitMQ (Docker :5672)                  
+              Event Bus — Choreography (no central orchestrator)  
+
+# | Service | Event Published | Next Action
+1 | Policy Service | PolicyPurchaseInitiated | Policy status set to DRAFT in PolicyDb
+2 | Policy Service | PolicyActivated | Auth Service listens → sends welcome email via SMTP
+3 | Claims Service | ClaimSubmitted | Admin Service listens → writes AuditLog entry
+4 | Admin Service | ClaimStatusChanged | Claims Service listens → updates claim status; Auth Service listens → sends email to customer
+5 | Auth Service | UserRegistered | Admin Service listens → writes AuditLog entry
+
+SmartSure/
+├── SmartSure.Gateway/                  ← Ocelot API Gateway
+│   ├── ocelot.json
+│   ├── Program.cs
+│   └── SmartSure.Gateway.csproj
+│
+├── Services/
+│   ├── SmartSure.AuthService/          ← Identity & Auth
+│   │   ├── Controllers/
+│   │   │   └── AuthController.cs
+│   │   ├── Data/
+│   │   │   ├── AuthDbContext.cs
+│   │   │   └── Migrations/
+│   │   ├── DTOs/
+│   │   │   ├── LoginDto.cs
+│   │   │   ├── RegisterDto.cs
+│   │   │   └── AuthResponseDto.cs
+│   │   ├── Models/
+│   │   │   └── AppUser.cs
+│   │   ├── Repositories/
+│   │   │   ├── IUserRepository.cs
+│   │   │   └── UserRepository.cs
+│   │   ├── Services/
+│   │   │   ├── IAuthService.cs
+│   │   │   ├── AuthService.cs
+│   │   │   ├── IJwtService.cs
+│   │   │   ├── JwtService.cs
+│   │   │   ├── IEmailService.cs
+│   │   │   └── EmailService.cs        ← SMTP via MailKit
+│   │   ├── Events/
+│   │   │   └── UserRegisteredEvent.cs
+│   │   ├── appsettings.json
+│   │   └── Program.cs                 ← app.UseMiddleware<ExceptionMiddleware>()
+│   │
+│   ├── SmartSure.PolicyService/        ← Policy Management
+│   │   ├── Controllers/
+│   │   │   ├── PolicyController.cs
+│   │   │   └── ProductController.cs
+│   │   ├── Data/
+│   │   │   ├── PolicyDbContext.cs
+│   │   │   └── Migrations/
+│   │   ├── DTOs/
+│   │   ├── Models/
+│   │   │   ├── InsuranceProduct.cs
+│   │   │   ├── Policy.cs
+│   │   │   └── Premium.cs
+│   │   ├── Repositories/
+│   │   │   ├── IPolicyRepository.cs
+│   │   │   └── PolicyRepository.cs
+│   │   ├── Services/
+│   │   │   ├── IPolicyService.cs
+│   │   │   └── PolicyService.cs
+│   │   ├── Messaging/
+│   │   │   ├── Publishers/
+│   │   │   │   └── PolicyEventPublisher.cs
+│   │   │   └── Consumers/
+│   │   │       └── PaymentResultConsumer.cs
+│   │   ├── appsettings.json
+│   │   └── Program.cs                 ← app.UseMiddleware<ExceptionMiddleware>()
+│   │
+│   ├── SmartSure.ClaimsService/        ← Claims & Documents
+│   │   ├── Controllers/
+│   │   │   ├── ClaimsController.cs
+│   │   │   └── DocumentController.cs
+│   │   ├── Data/
+│   │   │   ├── ClaimsDbContext.cs
+│   │   │   └── Migrations/
+│   │   ├── DTOs/
+│   │   ├── Models/
+│   │   │   ├── Claim.cs
+│   │   │   └── ClaimDocument.cs
+│   │   ├── Repositories/
+│   │   │   ├── IClaimRepository.cs
+│   │   │   └── ClaimRepository.cs
+│   │   ├── Services/
+│   │   │   ├── IClaimService.cs
+│   │   │   ├── ClaimService.cs
+│   │   │   ├── IMegaNzService.cs
+│   │   │   └── MegaNzService.cs       ← Mega.nz document upload
+│   │   ├── Messaging/
+│   │   │   ├── Publishers/
+│   │   │   │   └── ClaimEventPublisher.cs
+│   │   │   └── Consumers/
+│   │   │       └── ClaimReviewConsumer.cs
+│   │   ├── appsettings.json
+│   │   └── Program.cs                 ← app.UseMiddleware<ExceptionMiddleware>()
+│   │
+│   └── SmartSure.AdminService/         ← Admin & Reports
+│       ├── Controllers/
+│       │   ├── AdminClaimController.cs
+│       │   ├── AdminProductController.cs
+│       │   ├── AdminUserController.cs
+│       │   └── ReportController.cs
+│       ├── Data/
+│       │   ├── AdminDbContext.cs
+│       │   └── Migrations/
+│       ├── DTOs/
+│       ├── Models/
+│       │   └── AuditLog.cs
+│       ├── Repositories/
+│       ├── Services/
+│       │   ├── IAdminService.cs
+│       │   └── AdminService.cs
+│       ├── Messaging/
+│       │   └── Consumers/
+│       │       └── ClaimApprovalConsumer.cs
+│       ├── appsettings.json
+│       └── Program.cs                 ← app.UseMiddleware<ExceptionMiddleware>()
+│
+├── SmartSure.Shared/                   ← Class library; referenced by all 4 services
+│   ├── Middleware/                     ← SINGLE shared implementation
+│   │   └── ExceptionMiddleware.cs      ← Catches all exceptions; logs via Serilog
+│   ├── Exceptions/                     ← Custom exception types
+│   │   ├── NotFoundException.cs
+│   │   ├── ValidationException.cs
+│   │   └── UnauthorizedException.cs
+│   ├── Events/                         ← RabbitMQ event contracts
+│   │   ├── PolicyPurchaseInitiatedEvent.cs
+│   │   ├── PolicyActivatedEvent.cs
+│   │   ├── ClaimSubmittedEvent.cs
+│   │   └── ClaimStatusChangedEvent.cs
+│   ├── Models/
+│   │   └── ApiResponse.cs
+│   └── Constants/
+│       └── Queues.cs
+│
+├── SmartSure.Tests/                    ← NUnit test project
+│   ├── AuthService.Tests/
+│   ├── PolicyService.Tests/
+│   ├── ClaimsService.Tests/
+│   └── AdminService.Tests/
+│
+├── docker-compose.yml                  ← RabbitMQ container
+└── SmartSure.sln
+ 
+── Angular Frontend ──────────────────────────
+smartsure-ui/
+├── src/app/
+│   ├── core/                           ← CoreModule
+│   │   ├── interceptors/
+│   │   │   ├── jwt.interceptor.ts
+│   │   │   └── error.interceptor.ts
+│   │   ├── guards/
+│   │   │   ├── auth.guard.ts
+│   │   │   └── role.guard.ts
+│   │   └── services/
+│   │       └── auth.service.ts
+│   ├── shared/                         ← SharedModule
+│   │   ├── components/
+│   │   │   ├── status-badge/
+│   │   │   └── stepper/
+│   │   └── pipes/
+│   ├── auth/                           ← AuthModule
+│   │   ├── login/
+│   │   └── signup/
+│   ├── customer/                       ← CustomerModule
+│   │   ├── dashboard/
+│   │   ├── buy-policy/                 ← Wizard stepper
+│   │   ├── policy-detail/
+│   │   └── upload-document/
+│   ├── claims/                         ← ClaimsModule
+│   │   ├── initiate-claim/             ← Wizard stepper
+│   │   └── claim-status/
+│   ├── admin/                          ← AdminModule
+│   │   ├── dashboard/
+│   │   ├── claim-review/
+│   │   ├── policy-management/
+│   │   └── user-management/
+│   └── reports/                        ← ReportsModule
+│       └── report-viewer/
+├── environments/
+└── angular.json
+
+Method | Endpoint | Auth | Description
+POST | /gateway/auth/register | Public | Register new customer
+POST | /gateway/auth/login | Public | Login — returns JWT
+POST | /gateway/auth/google-login | Public | Google OAuth login
+POST | /gateway/auth/refresh-token | Public | Refresh JWT
+POST | /gateway/auth/forgot-password | Public | Send reset email (SMTP)
+POST | /gateway/auth/reset-password | Public | Reset password with token
+GET | /gateway/auth/profile | Customer | Get own profile
+PUT | /gateway/auth/profile | Customer | Update profile
+GET | /gateway/auth/users | Admin | List all users
+PUT | /gateway/auth/users/{id}/status | Admin | Activate / deactivate user
+
+Method | Endpoint | Auth | Description
+GET | /gateway/policies/products | Public | List insurance products (cached)
+GET | /gateway/policies/products/{id} | Public | Product detail + premium calc
+POST | /gateway/policies/products | Admin | Create insurance product
+PUT | /gateway/policies/products/{id} | Admin | Update product
+DELETE | /gateway/policies/products/{id} | Admin | Delete product
+GET | /gateway/policies/calculate-premium | Customer | Calculate premium (query params)
+POST | /gateway/policies/purchase | Customer | Initiate policy purchase (→ Saga)
+GET | /gateway/policies/my-policies | Customer | List own policies
+GET | /gateway/policies/{id} | Customer | Policy detail
+POST | /gateway/policies/{id}/cancel | Customer | Request cancellation
+GET | /gateway/policies/admin/all | Admin | All policies (paginated)
+PUT | /gateway/policies/admin/{id}/status | Admin | Force status update
+
+Method | Endpoint | Auth | Description
+POST | /gateway/claims | Customer | Initiate claim (draft)
+GET | /gateway/claims/my-claims | Customer | List own claims
+GET | /gateway/claims/{id} | Customer | Claim detail
+POST | /gateway/claims/{id}/submit | Customer | Submit draft claim
+POST | /gateway/claims/{id}/documents | Customer | Upload doc to Mega.nz
+GET | /gateway/claims/{id}/documents | Customer | List uploaded documents
+DELETE | /gateway/claims/{id}/documents/{docId} | Customer | Delete document
+GET | /gateway/claims/admin/all | Admin | All claims (paginated/filter)
+PUT | /gateway/claims/admin/{id}/review | Admin | Set Under Review
+PUT | /gateway/claims/admin/{id}/approve | Admin | Approve claim (→ Event)
+PUT | /gateway/claims/admin/{id}/reject | Admin | Reject claim (→ Event)
+
+Method | Endpoint | Auth | Description
+GET | /gateway/admin/dashboard/stats | Admin | KPI cards — total policies, claims, revenue
+GET | /gateway/admin/reports/policies | Admin | Policy report (date range, type filter)
+GET | /gateway/admin/reports/claims | Admin | Claims report (status, period)
+GET | /gateway/admin/reports/revenue | Admin | Revenue over time
+GET | /gateway/admin/reports/export | Admin | Export report as CSV
+GET | /gateway/admin/audit-logs | Admin | Audit log trail
+
+⚠  Three Global Design Rules
+1. GUIDs as PKs on all main entity tables (Users, Policies, Claims, etc.). Lookup/junction tables (Roles, UserRoles, InsuranceTypes, etc.) use INT IDENTITY — they are small, static, and never cross service boundaries.
+2. No RefreshToken table — JWT is issued on login; the token is stored in the client's localStorage. Stateless on the server side.
+3. Cross-service columns are labelled REF (no FK) — plain GUID with no enforced constraint. Consistency via RabbitMQ events.
+
+Column | Type | Constraint | Notes
+UserId | UNIQUEIDENTIFIER | PK DEFAULT NEWID() | GUID — main entity, referenced across services
+FullName | NVARCHAR(150) | NOT NULL | 
+Email | NVARCHAR(256) | UNIQUE NOT NULL | Used as login username
+PhoneNumber | NVARCHAR(20) | NULL | 
+Address | NVARCHAR(300) | NULL | 
+IsActive | BIT | DEFAULT 1 | Admin can deactivate; invalidates cache on change
+GoogleSubject | NVARCHAR(256) | NULL | Google OAuth 'sub' claim — null if password login
+CreatedAt | DATETIME2 | NOT NULL | UTC
+LastLoginAt | DATETIME2 | NULL | Updated on each successful login
+
+Column | Type | Constraint | Notes
+PassId | INT | PK IDENTITY | Lookup record — INT is fine
+UserId | UNIQUEIDENTIFIER | FK → Users | Cascade delete; 1-to-1 with Users
+PasswordHash | NVARCHAR(MAX) | NOT NULL | BCrypt hashed — never stored plain
+
+Column | Type | Constraint | Notes
+RoleId | INT | PK IDENTITY | Small static lookup — INT
+RoleName | NVARCHAR(50) | UNIQUE NOT NULL | CUSTOMER | ADMIN — cached in IMemoryCache
+
+Column | Type | Constraint | Notes
+Id | INT | PK IDENTITY | Junction table — INT
+UserId | UNIQUEIDENTIFIER | FK → Users | Cascade delete
+RoleId | INT | FK → Roles | Cascade delete
+
+Column | Type | Constraint | Notes
+Id | INT | PK IDENTITY | Short-lived record — INT
+UserId | UNIQUEIDENTIFIER | FK → Users | 
+Token | NVARCHAR(512) | NOT NULL | One-time SMTP token; hashed
+ExpiresAt | DATETIME2 | NOT NULL | 15-minute TTL
+IsUsed | BIT | DEFAULT 0 | Invalidated after first use
+
+💾  IMemoryCache — AuthDb
+• user_role_{userId} → 10 min TTL — role checked on every JWT-authenticated request via gateway
+• user_profile_{userId} → 5 min TTL — full profile object for GET /profile
+Cache is invalidated immediately when IsActive changes or profile is updated.
+
+Column | Type | Constraint | Notes
+TypeId | INT | PK IDENTITY | Small static lookup — INT; fully cached
+TypeName | NVARCHAR(100) | UNIQUE NOT NULL | e.g. Health | Vehicle | Home | Life
+
+Column | Type | Constraint | Notes
+SubTypeId | INT | PK IDENTITY | Small static lookup — INT; fully cached
+TypeId | INT | FK → InsuranceTypes | e.g. Vehicle → Comprehensive / Third-Party
+SubTypeName | NVARCHAR(150) | NOT NULL | 
+
+Column | Type | Constraint | Notes
+PolicyId | UNIQUEIDENTIFIER | PK DEFAULT NEWID() | GUID — referenced by ClaimsDb
+PolicyNumber | NVARCHAR(25) | UNIQUE NOT NULL | SS-YYYYMMDD-XXXX generated on purchase
+UserId | UNIQUEIDENTIFIER | REF (no FK) | References AuthDb.Users.UserId
+TypeId | INT | FK → InsuranceTypes | 
+SubTypeId | INT | FK → InsuranceSubTypes | 
+Status | NVARCHAR(20) | NOT NULL | DRAFT | ACTIVE | EXPIRED | CANCELLED
+IssuedDate | DATETIME2 | NOT NULL | Date policy was activated
+InsuranceDate | DATE | NOT NULL | Coverage start date
+EndDate | DATE | NOT NULL | Coverage end date
+CoverageAmount | DECIMAL(14,2) | NOT NULL | Max payout — snapshot from product at purchase
+MonthlyPremium | DECIMAL(10,2) | NOT NULL | Calculated at purchase time
+CreatedAt | DATETIME2 | NOT NULL | 
+UpdatedAt | DATETIME2 | NOT NULL | 
+
+Column | Type | Constraint | Notes
+PolicyDetailId | UNIQUEIDENTIFIER | PK DEFAULT NEWID() | GUID
+PolicyId | UNIQUEIDENTIFIER | FK → Policies | Cascade delete
+Details | NVARCHAR(MAX) | NOT NULL | JSON — nominee name, sum insured notes, etc.
+
+Column | Type | Constraint | Notes
+VehicleId | UNIQUEIDENTIFIER | PK DEFAULT NEWID() | GUID; populated when TypeId = Vehicle
+PolicyId | UNIQUEIDENTIFIER | FK → Policies | 1-to-1; Cascade delete
+VehicleNumber | NVARCHAR(20) | NOT NULL | Registration plate
+Model | NVARCHAR(100) | NOT NULL | Make & model e.g. Toyota Corolla
+YearOfMake | INT | NOT NULL | 
+EngineCC | INT | NULL | 
+
+Column | Type | Constraint | Notes
+HomeId | UNIQUEIDENTIFIER | PK DEFAULT NEWID() | GUID; populated when TypeId = Home
+PolicyId | UNIQUEIDENTIFIER | FK → Policies | 1-to-1; Cascade delete
+Address | NVARCHAR(300) | NOT NULL | Insured property address
+YearBuilt | INT | NOT NULL | 
+ConstructionType | NVARCHAR(50) | NULL | e.g. Brick, RCC, Wood
+
+Column | Type | Constraint | Notes
+PremiumId | UNIQUEIDENTIFIER | PK DEFAULT NEWID() | GUID
+PolicyId | UNIQUEIDENTIFIER | FK → Policies | 
+Amount | DECIMAL(10,2) | NOT NULL | Monthly premium amount
+DueDate | DATE | NOT NULL | 
+PaidAt | DATETIME2 | NULL | Null = not yet paid
+Status | NVARCHAR(20) | NOT NULL | PENDING | PAID | OVERDUE
+
+Column | Type | Constraint | Notes
+PaymentId | UNIQUEIDENTIFIER | PK DEFAULT NEWID() | GUID
+PolicyId | UNIQUEIDENTIFIER | FK → Policies | 
+Amount | DECIMAL(10,2) | NOT NULL | Amount actually paid
+PaymentDate | DATETIME2 | NOT NULL | 
+PaymentMethod | NVARCHAR(50) | NOT NULL | CARD | UPI | NETBANKING | WALLET
+TransactionRef | NVARCHAR(100) | NULL | External payment gateway reference
+Status | NVARCHAR(20) | NOT NULL | SUCCESS | FAILED | REFUNDED
+
+💾  IMemoryCache — PolicyDb
+• insurance_types_all → 60 min TTL — full InsuranceTypes + SubTypes list (rarely changes)
+• policy_{policyId} → 5 min TTL — policy detail for GET /policies/{id}
+• user_policies_{userId} → 2 min TTL — customer's policy list for dashboard
+Cache is invalidated on policy status change or new purchase.
+
+Column | Type | Constraint | Notes
+ClaimId | UNIQUEIDENTIFIER | PK DEFAULT NEWID() | GUID
+ClaimNumber | NVARCHAR(25) | UNIQUE NOT NULL | CLM-YYYYMMDD-XXXX
+PolicyId | UNIQUEIDENTIFIER | REF (no FK) | References PolicyDb.Policies.PolicyId
+UserId | UNIQUEIDENTIFIER | REF (no FK) | References AuthDb.Users.UserId
+Description | NVARCHAR(1000) | NOT NULL | Customer's claim reason
+ClaimAmount | DECIMAL(14,2) | NOT NULL | Requested payout amount
+Status | NVARCHAR(30) | NOT NULL | DRAFT | SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED | CLOSED
+AdminNote | NVARCHAR(500) | NULL | Admin's approval / rejection note
+ReviewedBy | UNIQUEIDENTIFIER | REF (no FK) | UserId of reviewing admin
+CreatedDate | DATETIME2 | NOT NULL | 
+SubmittedAt | DATETIME2 | NULL | Set when customer submits draft
+ReviewedAt | DATETIME2 | NULL | Set when admin acts
+UpdatedAt | DATETIME2 | NOT NULL | 
+
+Column | Type | Constraint | Notes
+DocId | UNIQUEIDENTIFIER | PK DEFAULT NEWID() | GUID
+ClaimId | UNIQUEIDENTIFIER | FK → Claims | Cascade delete
+FileName | NVARCHAR(255) | NOT NULL | Original uploaded file name
+MegaNzFileId | NVARCHAR(500) | NOT NULL | Mega.nz internal file handle
+FileUrl | NVARCHAR(1000) | NOT NULL | Mega.nz share URL for admin preview
+FileType | NVARCHAR(50) | NOT NULL | pdf | jpg | png
+FileSizeKb | INT | NOT NULL | 
+UploadedAt | DATETIME2 | NOT NULL | 
+
+Column | Type | Constraint | Notes
+HistoryId | UNIQUEIDENTIFIER | PK DEFAULT NEWID() | GUID — audit record
+ClaimId | UNIQUEIDENTIFIER | FK → Claims | Cascade delete
+OldStatus | NVARCHAR(30) | NOT NULL | Status before change
+NewStatus | NVARCHAR(30) | NOT NULL | Status after change
+ChangedBy | UNIQUEIDENTIFIER | REF (no FK) | UserId who triggered the change
+ChangedDate | DATETIME2 | NOT NULL | UTC
+Note | NVARCHAR(300) | NULL | Optional reason for change
+
+💾  IMemoryCache — ClaimsDb
+• claim_{claimId} → 2 min TTL — claim detail for customer status tracking page
+• user_claims_{userId} → 2 min TTL — customer's claims list
+Cache is invalidated immediately on any status change.
+
+Column | Type | Constraint | Notes
+LogId | UNIQUEIDENTIFIER | PK DEFAULT NEWID() | GUID
+UserId | UNIQUEIDENTIFIER | REF (no FK) | References AuthDb.Users.UserId
+Action | NVARCHAR(100) | NOT NULL | e.g. CLAIM_APPROVED | POLICY_CANCELLED
+EntityType | NVARCHAR(50) | NOT NULL | e.g. Claim | Policy | User
+EntityId | NVARCHAR(50) | NOT NULL | ID of the affected entity
+Details | NVARCHAR(MAX) | NULL | JSON snapshot of entity state at time of action
+TimeStamp | DATETIME2 | NOT NULL | UTC — indexed for report queries
+
+Column | Type | Constraint | Notes
+ReportId | UNIQUEIDENTIFIER | PK DEFAULT NEWID() | GUID
+ReportType | NVARCHAR(50) | NOT NULL | POLICY | CLAIM | REVENUE | USER_ACTIVITY
+GeneratedDate | DATETIME2 | NOT NULL | When the report was generated
+UserId | UNIQUEIDENTIFIER | REF (no FK) | Admin who requested the report
+PeriodFrom | DATE | NULL | Report filter start date
+PeriodTo | DATE | NULL | Report filter end date
+DataJson | NVARCHAR(MAX) | NOT NULL | Serialised report payload for export / display
+
+💾  IMemoryCache — AdminDb
+• admin_dashboard_stats → 2 min TTL — KPI cards (total policies, active claims, revenue)
+• report_{reportId} → 10 min TTL — cached report payload to avoid re-running expensive queries
+
+Column (GUID) | In Service DB | References (logically) | How kept in sync
+Policies.UserId | PolicyDb | AuthDb → Users.UserId | Set at purchase; user GUID never changes
+Claims.PolicyId | ClaimsDb | PolicyDb → Policies.PolicyId | Set at claim creation via event payload
+Claims.UserId | ClaimsDb | AuthDb → Users.UserId | Set at claim creation
+Claims.ReviewedBy | ClaimsDb | AuthDb → Users.UserId | From JWT UserId claim on admin action
+ClaimStatusHistory.ChangedBy | ClaimsDb | AuthDb → Users.UserId | From JWT on every status transition
+AuditLogs.UserId | AdminDb | AuthDb → Users.UserId | Consumed from RabbitMQ event payload
+Reports.UserId | AdminDb | AuthDb → Users.UserId | Set when admin triggers report
+
+Event | Publisher | Consumer(s) | Queue Name
+PolicyActivated | Policy Svc | Auth Svc → sends activation email | policy.activated
+ClaimSubmitted | Claims Svc | Admin Svc → writes AuditLog | claim.submitted
+ClaimStatusChanged | Admin Svc | Claims Svc → updates status; Auth Svc → emails customer | claim.status.changed
+UserRegistered | Auth Svc | Admin Svc → writes AuditLog | user.registered
+
+Cache Key | TTL | Service / Use
+user_role_{userId} | 10 min | Auth Svc — role checked on every authenticated request
+user_profile_{userId} | 5 min | Auth Svc — GET /profile; invalidated on profile update
+insurance_types_all | 60 min | Policy Svc — InsuranceTypes + SubTypes list (rarely changes)
+policy_{policyId} | 5 min | Policy Svc — policy detail; invalidated on status change
+user_policies_{userId} | 2 min | Policy Svc — customer dashboard policy list
+claim_{claimId} | 2 min | Claims Svc — claim detail; invalidated on status change
+user_claims_{userId} | 2 min | Claims Svc — customer claims list
+admin_dashboard_stats | 2 min | Admin Svc — KPI cards (total policies, claims, revenue)
+report_{reportId} | 10 min | Admin Svc — cached report payload
+
+Trigger Event | Recipient | Email Subject
+User registered | Customer | Welcome to SmartSure
+Policy activated | Customer | Your policy is now active
+Policy expiring in 30 days | Customer | Policy renewal reminder
+Claim submitted | Customer | Claim received — ref no.
+Claim approved | Customer | Your claim has been approved
+Claim rejected | Customer | Claim update — action required
+Password reset requested | Customer | Reset your SmartSure password
+
+DRAFT | ACTIVE | EXPIRED | CANCELLED
+Customer fills wizard; not yet paid | Payment confirmed via Saga | End date passed — cron job | Customer or Admin cancels
+
+DRAFT | SUBMITTED | UNDER REVIEW | APPROVED | REJECTED | CLOSED
+Customer fills form | Customer submits | Admin takes ownership | Admin approves + event | Admin rejects + note | Final state
+
+Topic | Where It's Applied
+Global Exception Handling | ExceptionMiddleware in SmartSure.Shared — one impl, 4 services register it; returns ProblemDetails
+EF Core Code-First | Each service: Models → DbContext → Migrations → SSMS verify
+Web API Design | REST conventions, versioning-ready, DTO separation
+JWT Auth & Encryption | Auth Service issues; Ocelot validates; BCrypt for passwords
+RabbitMQ + Choreography | Event bus for decoupled async flows — policy activated → email; claim submitted → audit log; claim status changed → email + status update. No central orchestrator; each service reacts to events independently
+Swagger 6.6.2 | Per-service, with JWT Bearer security definition
+Serilog | All services; JSON structured logs + rolling file sink
+Docker | RabbitMQ container via docker-compose; services run locally
+Unit Testing | NUnit + Moq; ≥90% coverage; no real DB in tests
+Ocelot + Polly | Gateway routing; retry (x3) + circuit breaker per route
+Repository Pattern | Controller → Service → IRepository → Repository → DbContext
+Dependency Injection | All services/repos scoped; DbContext scoped; MemoryCache singleton
+IMemoryCache | Products, dashboard stats, user roles — 2–10 min TTL
+SMTP | MailKit; triggered by RabbitMQ consumer in Auth Service
+Google OAuth | Auth Service validates Google ID token; maps to AppUser
+Mega.nz | Claims Service; MegaApiClient SDK; stores handle + URL in DB
+

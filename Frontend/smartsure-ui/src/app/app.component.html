@@ -1,0 +1,57 @@
+<div class="shell" [class.shell-auth]="compactShell">
+  <aside class="sidebar" *ngIf="!compactShell">
+    <div class="brand app-title">
+      <span class="brand-mark"></span>
+      <div>
+        <strong>SmartSure</strong>
+        <span>Insurance operations hub</span>
+      </div>
+    </div>
+
+    <nav class="nav-block" *ngIf="authState.isAuthenticated">
+      <p class="nav-label">Customer</p>
+      <a routerLink="/customer/dashboard" routerLinkActive="active">Dashboard</a>
+      <a routerLink="/customer/buy-policy" routerLinkActive="active">Buy policy</a>
+      <a routerLink="/claims/my-claims" routerLinkActive="active">Claims</a>
+    </nav>
+
+    <nav class="nav-block" *ngIf="authState.isAuthenticated">
+      <p class="nav-label">Account</p>
+      <a routerLink="/profile" routerLinkActive="active">My Profile</a>
+    </nav>
+
+    <nav class="nav-block" *ngIf="authState.hasRole('ADMIN')">
+      <p class="nav-label">Admin</p>
+      <a routerLink="/admin/dashboard" routerLinkActive="active">Dashboard</a>
+      <a routerLink="/admin/claims" routerLinkActive="active">Claims review</a>
+      <a routerLink="/admin/reports" routerLinkActive="active">Reports</a>
+      <a routerLink="/admin/audit-logs" routerLinkActive="active">Audit logs</a>
+    </nav>
+  </aside>
+
+  <main class="workspace" [class.workspace-auth]="compactShell">
+    <header class="topbar" *ngIf="!compactShell">
+      <div class="brand app-title">
+        <span class="brand-mark"></span>
+        <strong>SmartSure</strong>
+      </div>
+
+      <div class="session-chip" *ngIf="authState.isAuthenticated; else authActions">
+        <app-status-badge [value]="authState.hasRole('ADMIN') ? 'ADMIN' : 'CUSTOMER'"></app-status-badge>
+        <a routerLink="/profile" class="user-name-link">{{ authState.userName }}</a>
+        <button type="button" class="ghost-button" (click)="logout()">Logout</button>
+      </div>
+
+      <ng-template #authActions>
+        <div class="session-chip">
+          <a routerLink="/auth/login" class="ghost-link">Sign in</a>
+          <a routerLink="/auth/register" class="ghost-link register-link">Get started</a>
+        </div>
+      </ng-template>
+    </header>
+
+    <section class="page-frame" [class.page-frame-auth]="compactShell">
+      <router-outlet></router-outlet>
+    </section>
+  </main>
+</div>

@@ -1,0 +1,53 @@
+# .gitignore for Smart-Sure .NET + Angular monorepo
+
+# Ignore build outputs
+**/bin/
+**/obj/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio Code
+.vscode/
+
+# Logs
+**/logs/
+*.log
+
+# Dependency directories
+Backend/**/packages/
+Backend/**/project.lock.json
+
+# ASP.NET secrets
+secrets.json
+
+# Publish outputs
+**/publish/
+**/out/
+
+# Node modules (Frontend)
+Frontend/smartsure-ui/node_modules/
+
+# Angular build outputs
+Frontend/smartsure-ui/dist/
+
+# Environment files
+Frontend/smartsure-ui/.env
+Frontend/smartsure-ui/.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Others
+*.swp
+*.tmp
+*.bak
+*.orig
+
+# Rider
+.idea/
+*.sln.iml
