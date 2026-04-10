@@ -1,0 +1,6 @@
+@SmartSure.AdminService_HostAddress = http://localhost:5004
+
+GET {{SmartSure.AdminService_HostAddress}}/api/admin/dashboard/stats
+Accept: application/json
+
+###
