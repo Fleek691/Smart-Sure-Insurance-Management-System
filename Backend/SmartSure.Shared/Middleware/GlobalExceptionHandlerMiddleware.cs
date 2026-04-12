@@ -22,24 +22,34 @@ public class GlobalExceptionHandlerMiddleware
         {
             await _next(context);
         }
-        catch (NotFoundException ex)
-        {
-            await WriteProblemDetailsAsync(context, StatusCodes.Status404NotFound, ex.Message);
-        }
         catch (ValidationException ex)
         {
+            _logger.LogWarning("Validation error [{CorrelationId}]: {Message}", context.TraceIdentifier, ex.Message);
             await WriteProblemDetailsAsync(context, StatusCodes.Status400BadRequest, ex.Message);
         }
         catch (UnauthorizedException ex)
         {
+            _logger.LogWarning("Unauthorized [{CorrelationId}]: {Message}", context.TraceIdentifier, ex.Message);
             await WriteProblemDetailsAsync(context, StatusCodes.Status401Unauthorized, ex.Message);
+        }
+        catch (ForbiddenException ex)
+        {
+            _logger.LogWarning("Forbidden [{CorrelationId}]: {Message}", context.TraceIdentifier, ex.Message);
+            await WriteProblemDetailsAsync(context, StatusCodes.Status403Forbidden, ex.Message);
+        }
+        catch (NotFoundException ex)
+        {
+            _logger.LogWarning("Not found [{CorrelationId}]: {Message}", context.TraceIdentifier, ex.Message);
+            await WriteProblemDetailsAsync(context, StatusCodes.Status404NotFound, ex.Message);
         }
         catch (ConflictException ex)
         {
+            _logger.LogWarning("Conflict [{CorrelationId}]: {Message}", context.TraceIdentifier, ex.Message);
             await WriteProblemDetailsAsync(context, StatusCodes.Status409Conflict, ex.Message);
         }
         catch (BusinessRuleException ex)
         {
+            _logger.LogWarning("Business rule violation [{CorrelationId}]: {Message}", context.TraceIdentifier, ex.Message);
             await WriteProblemDetailsAsync(context, StatusCodes.Status422UnprocessableEntity, ex.Message);
         }
         catch (HttpServiceException ex)
@@ -50,16 +60,13 @@ public class GlobalExceptionHandlerMiddleware
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unhandled exception [{CorrelationId}]", context.TraceIdentifier);
-            await WriteProblemDetailsAsync(context, StatusCodes.Status500InternalServerError, "An unexpected error occurred");
+            await WriteProblemDetailsAsync(context, StatusCodes.Status500InternalServerError, "An unexpected error occurred. Please try again later.");
         }
     }
 
     private static async Task WriteProblemDetailsAsync(HttpContext context, int statusCode, string message)
     {
-        if (context.Response.HasStarted)
-        {
-            return;
-        }
+        if (context.Response.HasStarted) return;
 
         context.Response.StatusCode = statusCode;
         context.Response.ContentType = "application/problem+json";
@@ -67,12 +74,24 @@ public class GlobalExceptionHandlerMiddleware
         var problem = new
         {
             type = "about:blank",
-            title = message,
+            title = ResolveTitle(statusCode),
             status = statusCode,
+            detail = message,
             traceId = context.TraceIdentifier
         };
 
-        var payload = JsonSerializer.Serialize(problem);
-        await context.Response.WriteAsync(payload);
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        await context.Response.WriteAsync(JsonSerializer.Serialize(problem, options));
     }
+
+    private static string ResolveTitle(int statusCode) => statusCode switch
+    {
+        400 => "Validation Error",
+        401 => "Unauthorized",
+        403 => "Forbidden",
+        404 => "Not Found",
+        409 => "Conflict",
+        422 => "Business Rule Violation",
+        _ => "An unexpected error occurred"
+    };
 }

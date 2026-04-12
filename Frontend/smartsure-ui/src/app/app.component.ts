@@ -9,7 +9,6 @@ import { AuthStateService } from './core/services/auth-state.service';
   styleUrl: './app.component.css'
 })
 export class AppComponent implements OnInit, OnDestroy {
-  title = 'SmartSure';
   compactShell = true;
   private readonly subscriptions = new Subscription();
 

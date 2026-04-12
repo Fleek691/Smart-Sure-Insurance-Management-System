@@ -61,4 +61,8 @@ export class AuthService {
   updateUserStatus(userId: string, isActive: boolean): Observable<void> {
     return this.api.put<void>(`/users/${userId}/status`, null, { isActive });
   }
+
+  updateUserRole(userId: string, role: string): Observable<void> {
+    return this.api.put<void>(`/users/${userId}/role`, null, { role });
+  }
 }

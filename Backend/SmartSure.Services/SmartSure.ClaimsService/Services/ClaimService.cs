@@ -29,6 +29,21 @@ public class ClaimService : IClaimService
 
     public async Task<ClaimDto> CreateClaimAsync(Guid userId, CreateClaimDto dto)
     {
+        if (dto.PolicyId == Guid.Empty)
+        {
+            throw new ValidationException("Please select a policy to file a claim against.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.Description) || dto.Description.Trim().Length < 10)
+        {
+            throw new ValidationException("Please provide a detailed description (at least 10 characters).");
+        }
+
+        if (dto.ClaimAmount <= 0)
+        {
+            throw new ValidationException("Claim amount must be greater than zero.");
+        }
+
         var now = DateTime.UtcNow;
         var claim = new Claim
         {
@@ -79,12 +94,8 @@ public class ClaimService : IClaimService
         var cacheKey = GetClaimCacheKey(claimId);
         if (_memoryCache.TryGetValue(cacheKey, out ClaimDto? cachedClaim) && cachedClaim is not null)
         {
-            if (isAdmin || cachedClaim.UserId == userId)
-            {
-                return cachedClaim;
-            }
-
-            throw new UnauthorizedException("You are not allowed to view this claim.");
+            if (isAdmin || cachedClaim.UserId == userId) return cachedClaim;
+            throw new ForbiddenException("You are not allowed to view this claim.");
         }
 
         var claim = await _claimRepository.GetByIdAsync(claimId)
@@ -92,7 +103,7 @@ public class ClaimService : IClaimService
 
         if (!isAdmin && claim.UserId != userId)
         {
-            throw new UnauthorizedException("You are not allowed to view this claim.");
+            throw new ForbiddenException("You are not allowed to view this claim.");
         }
 
         var result = MapClaim(claim);
@@ -107,12 +118,18 @@ public class ClaimService : IClaimService
 
         if (claim.UserId != userId)
         {
-            throw new UnauthorizedException("You are not allowed to submit this claim.");
+            throw new ForbiddenException("You are not allowed to submit this claim.");
         }
 
         if (claim.Status != ClaimStatus.Draft)
         {
-            throw new ValidationException("Only draft claims can be submitted.");
+            throw new BusinessRuleException("Only draft claims can be submitted.");
+        }
+
+        var documents = await _claimRepository.GetDocumentsAsync(claimId);
+        if (!documents.Any())
+        {
+            throw new BusinessRuleException("Please upload at least one supporting document before submitting your claim.");
         }
 
         var oldStatus = claim.Status;
@@ -162,13 +179,33 @@ public class ClaimService : IClaimService
 
         if (claim.UserId != userId)
         {
-            throw new UnauthorizedException("You are not allowed to upload documents for this claim.");
+            throw new ForbiddenException("You are not allowed to upload documents for this claim.");
+        }
+
+        if (claim.Status != ClaimStatus.Draft)
+        {
+            throw new BusinessRuleException("Documents can only be uploaded to draft claims.");
         }
 
         var ext = dto.FileType.Trim().ToLowerInvariant();
         if (ext != "pdf" && ext != "jpg" && ext != "png")
         {
-            throw new ValidationException("Only pdf, jpg, and png file types are allowed.");
+            throw new ValidationException("Only PDF, JPG, and PNG file types are allowed.");
+        }
+
+        if (dto.FileSizeKb <= 0)
+        {
+            throw new ValidationException("File size must be greater than zero.");
+        }
+
+        if (dto.FileSizeKb > 10_240)
+        {
+            throw new ValidationException("File size cannot exceed 10 MB.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.FileName))
+        {
+            throw new ValidationException("File name is required.");
         }
 
         var content = ParseBase64(dto.ContentBase64);
@@ -201,7 +238,7 @@ public class ClaimService : IClaimService
 
         if (!isAdmin && claim.UserId != userId)
         {
-            throw new UnauthorizedException("You are not allowed to view documents for this claim.");
+            throw new ForbiddenException("You are not allowed to view documents for this claim.");
         }
 
         var documents = await _claimRepository.GetDocumentsAsync(claimId);
@@ -215,7 +252,12 @@ public class ClaimService : IClaimService
 
         if (claim.UserId != userId)
         {
-            throw new UnauthorizedException("You are not allowed to delete documents for this claim.");
+            throw new ForbiddenException("You are not allowed to delete documents for this claim.");
+        }
+
+        if (claim.Status != ClaimStatus.Draft)
+        {
+            throw new BusinessRuleException("Documents can only be deleted from draft claims.");
         }
 
         var document = await _claimRepository.GetDocumentByIdAsync(claimId, docId)

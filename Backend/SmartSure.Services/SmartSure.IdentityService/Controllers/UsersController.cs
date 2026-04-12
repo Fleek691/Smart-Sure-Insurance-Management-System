@@ -48,6 +48,14 @@ public class UsersController : ControllerBase
         return Ok();
     }
 
+    [HttpPut("{id:guid}/role")]
+    [Authorize(Roles = "ADMIN")]
+    public async Task<IActionResult> UpdateUserRole(Guid id, [FromQuery] string role)
+    {
+        await _userAdministrationService.UpdateUserRoleAsync(id, role);
+        return Ok();
+    }
+
     private Guid GetUserId()
     {
         var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value

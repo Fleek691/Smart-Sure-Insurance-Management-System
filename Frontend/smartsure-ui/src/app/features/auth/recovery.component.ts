@@ -11,10 +11,9 @@ import { AuthService } from '../../core/services/auth.service';
   template: `
     <section class="auth-page">
       <div class="hero-card">
-        <p class="eyebrow">Recovery</p>
-        <h2>Reset access without leaving the gateway flow.</h2>
+        <h2>Recover your account</h2>
         <p>
-          The backend exposes separate forgot-password and reset-password endpoints. This screen keeps both in one place for convenience.
+          Enter your email to receive a password reset link. Once you have the token, use the form below to set a new password.
         </p>
       </div>
 
@@ -85,14 +84,14 @@ export class RecoveryComponent {
   requestReset(): void {
     this.loading = true;
     this.errorMessage = '';
+    this.infoMessage = '';
     this.authService.requestPasswordReset(this.forgotModel).subscribe({
       next: () => {
-        this.infoMessage = 'If the account exists, a reset token has been sent.';
+        this.infoMessage = 'If the account exists, a reset token has been sent to your email.';
+        this.loading = false;
       },
       error: (error) => {
         this.errorMessage = this.resolveError(error);
-      },
-      complete: () => {
         this.loading = false;
       }
     });
@@ -101,14 +100,14 @@ export class RecoveryComponent {
   resetPassword(): void {
     this.loading = true;
     this.errorMessage = '';
+    this.infoMessage = '';
     this.authService.resetPassword(this.resetModel).subscribe({
       next: () => {
-        this.infoMessage = 'Password updated. You can sign in again now.';
+        this.infoMessage = 'Password updated successfully. You can now sign in.';
+        this.loading = false;
       },
       error: (error) => {
         this.errorMessage = this.resolveError(error);
-      },
-      complete: () => {
         this.loading = false;
       }
     });

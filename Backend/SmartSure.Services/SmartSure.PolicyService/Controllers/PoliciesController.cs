@@ -10,9 +10,10 @@ namespace SmartSure.PolicyService.Controllers;
 
 [ApiController]
 [Route("api/policies")]
-public class PoliciesController(IPolicyService policyService) : ControllerBase
+public class PoliciesController(IPolicyService policyService, IRazorpayService razorpayService) : ControllerBase
 {
     private readonly IPolicyService _policyService = policyService;
+    private readonly IRazorpayService _razorpayService = razorpayService;
 
     [HttpGet("products")]
     [AllowAnonymous]
@@ -63,6 +64,33 @@ public class PoliciesController(IPolicyService policyService) : ControllerBase
     {
         var userId = GetUserId();
         return await _policyService.PurchasePolicyAsync(userId, dto);
+    }
+
+    // ── Razorpay payment flow ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Step 1 — Create a Razorpay order.
+    /// Returns the order id, amount in paise, and the publishable key so the
+    /// frontend can open the Razorpay checkout widget.
+    /// </summary>
+    [HttpPost("payment/create-order")]
+    [Authorize(Roles = Roles.Customer)]
+    public async Task<PaymentOrderResponseDto> CreatePaymentOrder([FromBody] CreatePaymentOrderDto dto)
+    {
+        var userId = GetUserId();
+        return await _razorpayService.CreateOrderAsync(userId, dto);
+    }
+
+    /// <summary>
+    /// Step 2 — Verify the Razorpay signature and activate the policy.
+    /// Call this after the Razorpay checkout succeeds in the browser.
+    /// </summary>
+    [HttpPost("payment/verify")]
+    [Authorize(Roles = Roles.Customer)]
+    public async Task<PolicyDto> VerifyPayment([FromBody] VerifyPaymentDto dto)
+    {
+        var userId = GetUserId();
+        return await _razorpayService.VerifyAndActivateAsync(userId, dto);
     }
 
     [HttpGet("my-policies")]

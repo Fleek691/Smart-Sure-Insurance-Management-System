@@ -169,21 +169,6 @@ import { SharedModule } from '../../shared/shared.module';
           </div>
         </div>
 
-        <!-- Account Info Card -->
-        <div class="content-card">
-          <div class="card-header">
-            <h2 class="card-title">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="8"/><path d="M10 7v3"/><circle cx="10" cy="13.5" r="0.5" fill="currentColor"/></svg>
-              Account Details
-            </h2>
-          </div>
-          <div class="info-grid compact">
-            <div class="info-item"><span class="info-label">User ID</span><strong class="mono">{{ profile.userId }}</strong></div>
-            <div class="info-item"><span class="info-label">Member Since</span><strong>{{ profile.createdAt | date:'longDate' }}</strong></div>
-            <div class="info-item"><span class="info-label">Last Login</span><strong>{{ profile.lastLoginAt ? (profile.lastLoginAt | date:'medium') : 'Never' }}</strong></div>
-            <div class="info-item"><span class="info-label">Role</span><strong>{{ authState.hasRole('ADMIN') ? 'Admin' : 'Customer' }}</strong></div>
-          </div>
-        </div>
       </ng-container>
     </section>
   `,

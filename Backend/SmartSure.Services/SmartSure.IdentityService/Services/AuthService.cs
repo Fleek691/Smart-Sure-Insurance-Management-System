@@ -40,12 +40,34 @@ public class AuthService : IAuthService
 
     public async Task<OtpDispatchResponseDto> RegisterAsync(RegisterDto dto)
     {
+        // ── Input validation (defense-in-depth) ──
+        if (string.IsNullOrWhiteSpace(dto.FullName) || dto.FullName.Trim().Length < 2)
+        {
+            throw new ValidationException("Full name must be at least 2 characters.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.Email) || !IsValidEmail(dto.Email))
+        {
+            throw new ValidationException("Please provide a valid email address.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 8)
+        {
+            throw new ValidationException("Password must be at least 8 characters long.");
+        }
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(dto.Password,
+            @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])"))
+        {
+            throw new ValidationException("Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character (@$!%*?&#).");
+        }
+
         var email = NormalizeEmail(dto.Email);
 
         var existingUser = await _userRepository.GetByEmailAsync(email);
         if (existingUser is not null)
         {
-            throw new ConflictException("Email already exists.");
+            throw new ConflictException("An account with this email already exists.");
         }
 
         var otp = GenerateOtp();
@@ -173,17 +195,27 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponseDto> LoginAsync(LoginDto dto)
     {
+        if (string.IsNullOrWhiteSpace(dto.Email) || !IsValidEmail(dto.Email))
+        {
+            throw new ValidationException("Please provide a valid email address.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.Password))
+        {
+            throw new ValidationException("Password is required.");
+        }
+
         var user = await _userRepository.GetByEmailAsync(dto.Email)
-                   ?? throw new UnauthorizedException("Invalid credentials.");
+                   ?? throw new UnauthorizedException("Invalid email or password.");
 
         if (!user.IsActive)
         {
-            throw new UnauthorizedException("User is inactive.");
+            throw new UnauthorizedException("Your account has been deactivated. Please contact support.");
         }
 
         if (user.Password is null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.Password.PasswordHash))
         {
-            throw new UnauthorizedException("Invalid credentials.");
+            throw new UnauthorizedException("Invalid email or password.");
         }
 
         user.LastLoginAt = DateTime.UtcNow;
@@ -231,8 +263,14 @@ public class AuthService : IAuthService
 
     public async Task RequestPasswordResetAsync(ForgotPasswordDto dto)
     {
-        var user = await _userRepository.GetByEmailAsync(dto.Email)
-                   ?? throw new NotFoundException("User not found.");
+        if (string.IsNullOrWhiteSpace(dto.Email) || !IsValidEmail(dto.Email))
+        {
+            throw new ValidationException("Please provide a valid email address.");
+        }
+
+        // Intentionally silent when email not found — prevents user enumeration attacks
+        var user = await _userRepository.GetByEmailAsync(NormalizeEmail(dto.Email));
+        if (user is null) return;
 
         var resetToken = System.Security.Cryptography.RandomNumberGenerator.GetInt32(0, 1000000).ToString("D6");
         user.PasswordResetTokens.Add(new PasswordResetToken
@@ -243,13 +281,29 @@ public class AuthService : IAuthService
         });
 
         await _userRepository.SaveChangesAsync();
-        await _emailService.SendAsync(user.Email, "Your SmartSure password OTP", $"Your 6 digit OTP is: {resetToken}");
+        await _emailService.SendAsync(user.Email, "Your SmartSure password reset OTP", $"Your 6-digit OTP is: {resetToken}. It expires in 15 minutes.");
     }
 
     public async Task ResetPasswordAsync(ResetPasswordDto dto)
     {
-        var user = await _userRepository.GetByEmailAsync(dto.Email)
-                   ?? throw new NotFoundException("User not found.");
+        if (string.IsNullOrWhiteSpace(dto.Email) || !IsValidEmail(dto.Email))
+        {
+            throw new ValidationException("Please provide a valid email address.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.NewPassword) || dto.NewPassword.Length < 8)
+        {
+            throw new ValidationException("New password must be at least 8 characters long.");
+        }
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(dto.NewPassword,
+            @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])"))
+        {
+            throw new ValidationException("New password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character (@$!%*?&#).");
+        }
+
+        var user = await _userRepository.GetByEmailAsync(NormalizeEmail(dto.Email))
+                   ?? throw new ValidationException("Invalid or expired token.");
 
         PasswordResetToken? token = null;
         var incomingToken = dto.Token.Trim();
@@ -354,6 +408,19 @@ public class AuthService : IAuthService
     private static string NormalizeEmail(string email)
     {
         return email.Trim().ToLowerInvariant();
+    }
+
+    private static bool IsValidEmail(string email)
+    {
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(email.Trim());
+            return addr.Address == email.Trim();
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static string GenerateOtp()

@@ -2,9 +2,11 @@ import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
   InsuranceProductDto,
+  PaymentOrderResponseDto,
   PolicyDto,
   PremiumCalculationDto,
-  PurchasePolicyDto
+  PurchasePolicyDto,
+  VerifyPaymentDto
 } from '../../models/api-models';
 import { ApiService } from './api.service';
 
@@ -26,6 +28,14 @@ export class PolicyService {
 
   purchasePolicy(dto: PurchasePolicyDto): Observable<PolicyDto> {
     return this.api.post<PolicyDto>('/policies/purchase', dto);
+  }
+
+  createPaymentOrder(dto: PurchasePolicyDto): Observable<PaymentOrderResponseDto> {
+    return this.api.post<PaymentOrderResponseDto>('/policies/payment/create-order', dto);
+  }
+
+  verifyPayment(dto: VerifyPaymentDto): Observable<PolicyDto> {
+    return this.api.post<PolicyDto>('/policies/payment/verify', dto);
   }
 
   getMyPolicies(): Observable<PolicyDto[]> {

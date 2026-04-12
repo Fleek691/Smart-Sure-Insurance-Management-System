@@ -14,5 +14,6 @@ public interface IPolicyRepository
     Task<List<Policy>> GetByUserIdAsync(Guid userId);
     Task<List<Policy>> GetAllAsync();
     Task AddAsync(Policy policy);
+    Task AddPaymentAsync(Payment payment);
     Task SaveChangesAsync();
 }

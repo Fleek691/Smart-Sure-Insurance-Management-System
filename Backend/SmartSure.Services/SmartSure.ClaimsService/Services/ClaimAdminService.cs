@@ -46,6 +46,11 @@ public class ClaimAdminService(
 
     public async Task<ClaimDto> RejectClaimAsync(Guid claimId, Guid adminUserId, string reason)
     {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new ValidationException("A rejection reason is required when rejecting a claim.");
+        }
+
         var claim = await UpdateClaimStatusByAdminAsync(claimId, adminUserId, ClaimStatus.Rejected, reason);
 
         await _eventPublisher.PublishClaimRejectedAsync(new ClaimRejectedEvent
@@ -65,9 +70,23 @@ public class ClaimAdminService(
                     ?? throw new NotFoundException("Claim not found.");
 
         var oldStatus = claim.Status;
+
         if (oldStatus == newStatus)
         {
-            throw new ValidationException("Claim status is already set to this value.");
+            throw new BusinessRuleException($"Claim is already in '{newStatus}' status.");
+        }
+
+        // Enforce valid state transitions
+        var allowed = oldStatus switch
+        {
+            ClaimStatus.Submitted   => new[] { ClaimStatus.UnderReview },
+            ClaimStatus.UnderReview => new[] { ClaimStatus.Approved, ClaimStatus.Rejected },
+            _ => Array.Empty<string>()
+        };
+
+        if (!allowed.Contains(newStatus))
+        {
+            throw new BusinessRuleException($"Cannot transition a claim from '{oldStatus}' to '{newStatus}'.");
         }
 
         claim.Status = newStatus;

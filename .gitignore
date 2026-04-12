@@ -10,8 +10,16 @@
 *.userosscache
 *.sln.docstates
 
-# Visual Studio Code
+# Visual Studio
+.vs/
 .vscode/
+*.slnLaunch.user
+
+# HTTP test files (auto-generated boilerplate)
+*.http
+
+# Backend environment secrets
+Backend/**/.env
 
 # Logs
 **/logs/

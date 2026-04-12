@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="DotNetEnv" Version="3.1.1" />
     <PackageReference Include="MassTransit.RabbitMQ" Version="8.3.2" />
     <PackageReference Include="Google.Apis.Auth" Version="1.73.0" />
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.17.0" />
@@ -27,6 +28,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\SmartSure.Shared\SmartSure.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update=".env">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

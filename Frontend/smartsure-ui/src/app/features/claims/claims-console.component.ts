@@ -168,7 +168,9 @@ import { SharedModule } from '../../shared/shared.module';
           </div>
           <div class="step-actions">
             <button type="button" class="secondary-button" (click)="claimStep = 0">← Back</button>
-            <button type="button" class="primary-button" [disabled]="!createModel.description || !createModel.claimAmount" (click)="claimStep = 2">
+            <button type="button" class="primary-button"
+              [disabled]="!createModel.description || createModel.description.trim().length < 10 || !createModel.claimAmount || createModel.claimAmount <= 0"
+              (click)="claimStep = 2">
               Next: Review →
             </button>
           </div>
@@ -188,6 +190,7 @@ import { SharedModule } from '../../shared/shared.module';
             <span class="field-label">Description</span>
             <p>{{ createModel.description }}</p>
           </div>
+          <p class="error-msg" *ngIf="errorMessage">{{ errorMessage }}</p>
           <div class="step-actions">
             <button type="button" class="secondary-button" (click)="claimStep = 1">← Back</button>
             <button type="button" class="confirm-button" (click)="createClaim()" [disabled]="loading">
@@ -226,6 +229,7 @@ import { SharedModule } from '../../shared/shared.module';
               {{ selectedClaim.status === 'DRAFT' ? (loading ? 'Submitting...' : 'Submit for Review') : 'Already Submitted' }}
             </button>
           </div>
+          <p class="error-msg" *ngIf="errorMessage">{{ errorMessage }}</p>
         </div>
 
         <!-- Documents section -->
@@ -253,6 +257,7 @@ import { SharedModule } from '../../shared/shared.module';
               {{ loading ? 'Uploading...' : 'Upload Document' }}
             </button>
           </div>
+          <p class="error-msg" *ngIf="errorMessage">{{ errorMessage }}</p>
 
           <div class="doc-list" *ngIf="documents.length > 0">
             <article class="doc-row" *ngFor="let doc of documents">
@@ -447,6 +452,7 @@ import { SharedModule } from '../../shared/shared.module';
     .confirm-button svg { width: 16px; height: 16px; }
     .ghost-link { background: transparent; border: 0; color: var(--primary, #5465ff); cursor: pointer; font-weight: 700; font-size: 0.82rem; padding: 0.3rem 0; }
     .hint { color: var(--muted); font-size: 0.85rem; }
+    .error-msg { color: #d1495b; font-size: 0.88rem; margin: 0.5rem 0 0; }
 
     /* ── Empty State ── */
     .empty-state { text-align: center; padding: 2.5rem 1.5rem; }
@@ -468,6 +474,7 @@ export class ClaimsConsoleComponent implements OnInit {
   view: 'list' | 'new' | 'detail' = 'list';
   claimStep = 0;
   loading = false;
+  errorMessage = '';
   policies: PolicyDto[] = [];
   claims: ClaimDto[] = [];
   documents: ClaimDocumentDto[] = [];
@@ -476,7 +483,7 @@ export class ClaimsConsoleComponent implements OnInit {
   createModel: CreateClaimDto = {
     policyId: '',
     description: '',
-    claimAmount: 5000
+    claimAmount: 0
   };
 
   uploadModel: UploadClaimDocumentDto = {
@@ -507,6 +514,7 @@ export class ClaimsConsoleComponent implements OnInit {
   }
 
   go(path: string): void {
+    this.errorMessage = '';
     if (path.includes('/new')) {
       this.claimStep = 0;
     }
@@ -517,17 +525,6 @@ export class ClaimsConsoleComponent implements OnInit {
     if (index < this.claimStep) {
       this.claimStep = index;
     }
-  }
-
-  reload(): void {
-    this.loadData();
-  }
-
-  usePolicy(policy: PolicyDto): void {
-    this.createModel.policyId = policy.policyId;
-    this.view = 'new';
-    this.claimStep = 0;
-    void this.router.navigateByUrl('/claims/new');
   }
 
   getSelectedPolicy(): PolicyDto | undefined {
@@ -541,16 +538,9 @@ export class ClaimsConsoleComponent implements OnInit {
     this.loadDocuments();
   }
 
-  setCurrentClaim(claim: ClaimDto | null): void {
-    if (!claim) {
-      return;
-    }
-    this.selectedClaim = claim;
-    this.view = 'detail';
-  }
-
   createClaim(): void {
     this.loading = true;
+    this.errorMessage = '';
     this.claimsService.createClaim(this.createModel).subscribe({
       next: (claim) => {
         this.selectedClaim = claim;
@@ -559,73 +549,79 @@ export class ClaimsConsoleComponent implements OnInit {
         this.loadData();
         this.loadDocuments();
       },
-      error: () => {
+      error: (err) => {
+        this.errorMessage = this.resolveError(err);
         this.loading = false;
       },
-      complete: () => {
-        this.loading = false;
-      }
+      complete: () => { this.loading = false; }
     });
   }
 
   submitClaim(): void {
-    if (!this.selectedClaim) {
-      return;
-    }
+    if (!this.selectedClaim) return;
     this.loading = true;
+    this.errorMessage = '';
     this.claimsService.submitClaim(this.selectedClaim.claimId).subscribe({
       next: (claim) => {
         this.selectedClaim = claim;
         this.loadData();
       },
-      complete: () => {
+      error: (err) => {
+        this.errorMessage = this.resolveError(err);
         this.loading = false;
-      }
+      },
+      complete: () => { this.loading = false; }
     });
   }
 
   loadDocuments(): void {
-    if (!this.selectedClaim) {
-      return;
-    }
+    if (!this.selectedClaim) return;
     this.claimsService.getDocuments(this.selectedClaim.claimId).subscribe({
-      next: (docs) => {
-        this.documents = docs;
-      }
+      next: (docs) => { this.documents = docs; },
+      error: (err) => { this.errorMessage = this.resolveError(err); }
     });
   }
 
   uploadDocument(): void {
-    if (!this.selectedClaim) {
-      return;
-    }
+    if (!this.selectedClaim) return;
     this.loading = true;
+    this.errorMessage = '';
     this.claimsService.uploadDocument(this.selectedClaim.claimId, this.uploadModel).subscribe({
       next: () => {
         this.loadDocuments();
         this.uploadModel = { fileName: '', fileType: '', fileSizeKb: 1, contentBase64: '' };
       },
-      complete: () => {
+      error: (err) => {
+        this.errorMessage = this.resolveError(err);
         this.loading = false;
-      }
+      },
+      complete: () => { this.loading = false; }
     });
   }
 
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (!file) {
-      return;
-    }
+    if (!file) return;
+
+    // Extract extension — backend expects 'pdf', 'jpg', or 'png'
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+    const allowedExt = ext === 'jpeg' ? 'jpg' : ext;
+
     const reader = new FileReader();
     reader.onload = () => {
       const result = String(reader.result ?? '');
-      this.uploadModel.fileName = file.name;
-      this.uploadModel.fileType = file.type || file.name.split('.').pop() || 'application/octet-stream';
-      this.uploadModel.fileSizeKb = Math.max(1, Math.ceil(file.size / 1024));
+      this.uploadModel.fileName    = file.name;
+      this.uploadModel.fileType    = allowedExt;
+      this.uploadModel.fileSizeKb  = Math.max(1, Math.ceil(file.size / 1024));
       this.uploadModel.contentBase64 = result.includes(',') ? result.split(',')[1] : result;
     };
     reader.readAsDataURL(file);
+  }
+
+  private resolveError(error: unknown): string {
+    const r = error as { error?: { detail?: string; title?: string }; message?: string };
+    return r?.error?.detail ?? r?.error?.title ?? r?.message ?? 'Something went wrong. Please try again.';
   }
 
   private loadData(): void {

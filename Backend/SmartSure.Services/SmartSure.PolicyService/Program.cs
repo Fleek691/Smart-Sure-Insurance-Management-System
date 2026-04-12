@@ -12,6 +12,20 @@ using SmartSure.PolicyService.Services;
 using SmartSure.Shared.Messaging;
 using System.Text;
 
+// Load .env — walk up from the executable directory to find the .env in the project root
+{
+    var envPath = Path.Combine(AppContext.BaseDirectory, ".env");
+    if (!File.Exists(envPath))
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, ".env")))
+            dir = dir.Parent;
+        if (dir != null)
+            envPath = Path.Combine(dir.FullName, ".env");
+    }
+    if (File.Exists(envPath))
+        DotNetEnv.Env.Load(envPath);
+}
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddSerilogLogging("PolicyService");
@@ -73,6 +87,7 @@ builder.Services.AddMassTransit(config =>
 builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
 builder.Services.AddScoped<IPolicyEventPublisher, PolicyEventPublisher>();
 builder.Services.AddScoped<IPolicyService, PolicyService>();
+builder.Services.AddScoped<IRazorpayService, RazorpayService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddAuthorization();

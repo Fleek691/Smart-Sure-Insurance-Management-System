@@ -2,42 +2,29 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { AuthResponseDto } from '../../models/api-models';
 
-export interface AuthSession extends AuthResponseDto {
-  expiresAtUtc: string;
-}
-
 @Injectable({ providedIn: 'root' })
 export class AuthStateService {
   private readonly storageKey = 'smartsure.auth.session';
-  private readonly sessionSubject = new BehaviorSubject<AuthSession | null>(null);
+  private readonly sessionSubject = new BehaviorSubject<AuthResponseDto | null>(null);
   readonly session$ = this.sessionSubject.asObservable();
 
   restoreSession(): void {
-    if (this.sessionSubject.value) {
-      return;
-    }
+    if (this.sessionSubject.value) return;
 
-    const rawSession = localStorage.getItem(this.storageKey);
-    if (!rawSession) {
-      return;
-    }
+    const raw = localStorage.getItem(this.storageKey);
+    if (!raw) return;
 
     try {
-      const session = JSON.parse(rawSession) as AuthSession;
-      this.sessionSubject.next(session);
+      this.sessionSubject.next(JSON.parse(raw) as AuthResponseDto);
     } catch {
       localStorage.removeItem(this.storageKey);
     }
   }
 
   setSession(session: AuthResponseDto): void {
-    const normalizedSession: AuthSession = {
-      ...session,
-      roles: session.roles ?? []
-    };
-
-    localStorage.setItem(this.storageKey, JSON.stringify(normalizedSession));
-    this.sessionSubject.next(normalizedSession);
+    const normalized: AuthResponseDto = { ...session, roles: session.roles ?? [] };
+    localStorage.setItem(this.storageKey, JSON.stringify(normalized));
+    this.sessionSubject.next(normalized);
   }
 
   clearSession(): void {
@@ -45,7 +32,7 @@ export class AuthStateService {
     this.sessionSubject.next(null);
   }
 
-  get snapshot(): AuthSession | null {
+  get snapshot(): AuthResponseDto | null {
     return this.sessionSubject.value;
   }
 
@@ -74,7 +61,7 @@ export class AuthStateService {
   }
 
   hasAnyRole(roles: string[]): boolean {
-    return roles.some((role) => this.hasRole(role));
+    return roles.some((r) => this.hasRole(r));
   }
 
   primaryRoute(): string {

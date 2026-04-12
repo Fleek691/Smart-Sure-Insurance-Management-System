@@ -54,6 +54,7 @@ export interface ProfileDto {
   createdAt?: string;
   lastLoginAt?: string | null;
   isActive?: boolean;
+  roles?: string[];
 }
 
 export interface UpdateProfileDto {
@@ -74,8 +75,7 @@ export interface PremiumCalculationDto {
   productId: number;
   coverageAmount: number;
   termMonths: number;
-  basePremium: number;
-  calculatedPremium: number;
+  monthlyPremium: number;
 }
 
 export interface PurchasePolicyDto {
@@ -83,6 +83,22 @@ export interface PurchasePolicyDto {
   coverageAmount: number;
   termMonths: number;
   insuranceDate: string;
+}
+
+export interface PaymentOrderResponseDto {
+  razorpayOrderId: string;
+  amountPaise: number;
+  currency: string;
+  razorpayKeyId: string;
+  monthlyPremium: number;
+  pendingOrderToken: string;
+}
+
+export interface VerifyPaymentDto {
+  pendingOrderToken: string;
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
 }
 
 export interface PolicyDto {

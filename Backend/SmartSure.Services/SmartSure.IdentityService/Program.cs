@@ -13,8 +13,20 @@ using SmartSure.IdentityService.Services;
 using SmartSure.Shared.Messaging;
 using System.Text;
 
-// Load .env file for environment variables
-DotNetEnv.Env.Load();
+// Load .env — walk up from the executable directory to find the .env in the project root
+{
+    var envPath = Path.Combine(AppContext.BaseDirectory, ".env");
+    if (!File.Exists(envPath))
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, ".env")))
+            dir = dir.Parent;
+        if (dir != null)
+            envPath = Path.Combine(dir.FullName, ".env");
+    }
+    if (File.Exists(envPath))
+        DotNetEnv.Env.Load(envPath);
+}
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddSerilogLogging("IdentityService");
@@ -104,7 +116,40 @@ builder.Services.AddHttpClient<IGoogleAuthService, GoogleAuthService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IUserAdministrationService, UserAdministrationService>();
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        // Override the default "One or more validation errors occurred." response.
+        // Collapse all field-level errors into a single detail string that matches
+        // the same problem+json shape produced by GlobalExceptionHandlerMiddleware.
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var errors = context.ModelState
+                .Where(e => e.Value?.Errors.Count > 0)
+                .SelectMany(e => e.Value!.Errors.Select(x =>
+                    string.IsNullOrWhiteSpace(x.ErrorMessage) ? "Invalid value." : x.ErrorMessage))
+                .ToList();
+
+            var detail = errors.Count == 1
+                ? errors[0]
+                : string.Join(" ", errors);
+
+            var problem = new
+            {
+                type    = "about:blank",
+                title   = "Validation Error",
+                status  = 400,
+                detail,
+                traceId = context.HttpContext.TraceIdentifier
+            };
+
+            return new Microsoft.AspNetCore.Mvc.ObjectResult(problem)
+            {
+                StatusCode = 400,
+                ContentTypes = { "application/problem+json" }
+            };
+        };
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -137,6 +182,15 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 var app = builder.Build();
+
+// Seed admin user on startup
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+    var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    await DbSeeder.SeedAsync(dbContext, config, logger);
+}
 
 if (app.Environment.IsDevelopment())
 {

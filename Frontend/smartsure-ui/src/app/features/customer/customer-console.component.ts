@@ -261,7 +261,7 @@ import { SharedModule } from '../../shared/shared.module';
             <div class="review-item"><span>Start Date</span><strong>{{ purchaseModel.insuranceDate }}</strong></div>
             <div class="review-item highlight">
               <span>Monthly Premium</span>
-              <strong class="premium-amount">{{ quote.calculatedPremium | formatCurrency }}<small>/month</small></strong>
+              <strong class="premium-amount">{{ quote.monthlyPremium | formatCurrency }}<small>/month</small></strong>
             </div>
           </div>
 
@@ -679,29 +679,110 @@ export class CustomerConsoleComponent implements OnInit {
     });
   }
 
-  calculatePremium(): void {
-    this.calculateAndNext();
-  }
-
   purchasePolicy(): void {
     this.loading = true;
     this.message = '';
-    this.policyService.purchasePolicy(this.purchaseModel).subscribe({
-      next: (policy) => {
-        this.message = `Successfully purchased ${policy.policyNumber}!`;
-        this.selectedPolicy = policy;
-        this.view = 'detail';
-        void this.router.navigateByUrl(`/customer/policy/${policy.policyId}`);
-        this.loadData();
-      },
-      error: () => {
-        this.message = 'Unable to purchase policy. Please try again.';
+
+    const dto = {
+      productId: this.purchaseModel.productId,
+      coverageAmount: this.purchaseModel.coverageAmount,
+      termMonths: this.purchaseModel.termMonths,
+      insuranceDate: this.purchaseModel.insuranceDate
+    };
+
+    // Step 1 — create Razorpay order on the backend
+    this.policyService.createPaymentOrder(dto).subscribe({
+      next: (order) => {
         this.loading = false;
+        this.openRazorpayCheckout(order);
       },
-      complete: () => {
+      error: (err) => {
+        this.message = this.resolveError(err);
         this.loading = false;
       }
     });
+  }
+
+  private openRazorpayCheckout(order: import('../../models/api-models').PaymentOrderResponseDto): void {
+    const product = this.getSelectedProduct();
+    const userName = this.authState.userName ?? '';
+
+    const options = {
+      key: order.razorpayKeyId,
+      amount: order.amountPaise,
+      currency: order.currency,
+      name: 'SmartSure',
+      description: product ? `${product.typeName} · ${product.subTypeName}` : 'Insurance Policy',
+      order_id: order.razorpayOrderId,
+      theme: { color: '#5465FF' },
+      handler: (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
+        // Step 2 — verify signature and activate policy
+        this.loading = true;
+        this.message = 'Verifying payment…';
+
+        this.policyService.verifyPayment({
+          pendingOrderToken: order.pendingOrderToken,
+          razorpayOrderId: response.razorpay_order_id,
+          razorpayPaymentId: response.razorpay_payment_id,
+          razorpaySignature: response.razorpay_signature
+        }).subscribe({
+          next: (policy) => {
+            this.loading = false;
+            this.message = '';
+            this.selectedPolicy = policy;
+            this.view = 'detail';
+            void this.router.navigateByUrl(`/customer/policy/${policy.policyId}`);
+            this.loadData();
+          },
+          error: (err) => {
+            this.message = this.resolveError(err);
+            this.loading = false;
+          }
+        });
+      },
+      modal: {
+        ondismiss: () => {
+          this.message = 'Payment cancelled. You can try again.';
+        }
+      },
+      prefill: { name: userName }
+    };
+
+    // Load Razorpay script lazily if not already present
+    const existingScript = document.getElementById('razorpay-script');
+    if (existingScript) {
+      this.launchRazorpay(options);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = 'razorpay-script';
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => this.launchRazorpay(options);
+    script.onerror = () => {
+      this.message = 'Unable to load payment gateway. Please check your connection and try again.';
+    };
+    document.body.appendChild(script);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private launchRazorpay(options: Record<string, any>): void {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const Razorpay = (window as any)['Razorpay'];
+    if (!Razorpay) {
+      this.message = 'Payment gateway failed to load. Please refresh and try again.';
+      return;
+    }
+    const rzp = new Razorpay(options);
+    rzp.on('payment.failed', (response: { error: { description: string } }) => {
+      this.message = `Payment failed: ${response.error.description}`;
+    });
+    rzp.open();
+  }
+
+  private resolveError(error: unknown): string {
+    const r = error as { error?: { detail?: string; title?: string }; message?: string };
+    return r?.error?.detail ?? r?.error?.title ?? r?.message ?? 'Something went wrong. Please try again.';
   }
 
   openPolicy(policy: PolicyDto): void {

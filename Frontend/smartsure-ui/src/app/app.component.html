@@ -8,7 +8,7 @@
       </div>
     </div>
 
-    <nav class="nav-block" *ngIf="authState.isAuthenticated">
+    <nav class="nav-block" *ngIf="authState.isAuthenticated && !authState.hasRole('ADMIN')">
       <p class="nav-label">Customer</p>
       <a routerLink="/customer/dashboard" routerLinkActive="active">Dashboard</a>
       <a routerLink="/customer/buy-policy" routerLinkActive="active">Buy policy</a>
@@ -24,8 +24,10 @@
       <p class="nav-label">Admin</p>
       <a routerLink="/admin/dashboard" routerLinkActive="active">Dashboard</a>
       <a routerLink="/admin/claims" routerLinkActive="active">Claims review</a>
-      <a routerLink="/admin/reports" routerLinkActive="active">Reports</a>
+      <a routerLink="/admin/policies" routerLinkActive="active">Policies</a>
+      <a routerLink="/admin/users" routerLinkActive="active">Users</a>
       <a routerLink="/admin/audit-logs" routerLinkActive="active">Audit logs</a>
+      <a routerLink="/admin/reports" routerLinkActive="active">Reports</a>
     </nav>
   </aside>
 

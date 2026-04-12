@@ -292,6 +292,28 @@
         "TimeoutValue": 10000
       }
     },
+    {
+      "DownstreamPathTemplate": "/api/users/{id}/role",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "localhost",
+          "Port": 5001
+        }
+      ],
+      "UpstreamPathTemplate": "/gateway/users/{id}/role",
+      "UpstreamHttpMethod": [ "PUT" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer",
+        "AllowedScopes": []
+      },
+      "SwaggerKey": "identity",
+      "QoSOptions": {
+        "ExceptionsAllowedBeforeBreaking": 3,
+        "DurationOfBreak": 30000,
+        "TimeoutValue": 10000
+      }
+    },
 
     {
       "DownstreamPathTemplate": "/api/policies/products",
@@ -420,24 +442,32 @@
     {
       "DownstreamPathTemplate": "/api/policies/purchase",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [
-        {
-          "Host": "localhost",
-          "Port": 5002
-        }
-      ],
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 5002 }],
       "UpstreamPathTemplate": "/gateway/policies/purchase",
       "UpstreamHttpMethod": [ "POST" ],
-      "AuthenticationOptions": {
-        "AuthenticationProviderKey": "Bearer",
-        "AllowedScopes": []
-      },
+      "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer", "AllowedScopes": [] },
       "SwaggerKey": "policy",
-      "QoSOptions": {
-        "ExceptionsAllowedBeforeBreaking": 3,
-        "DurationOfBreak": 30000,
-        "TimeoutValue": 10000
-      }
+      "QoSOptions": { "ExceptionsAllowedBeforeBreaking": 3, "DurationOfBreak": 30000, "TimeoutValue": 10000 }
+    },
+    {
+      "DownstreamPathTemplate": "/api/policies/payment/create-order",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 5002 }],
+      "UpstreamPathTemplate": "/gateway/policies/payment/create-order",
+      "UpstreamHttpMethod": [ "POST" ],
+      "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer", "AllowedScopes": [] },
+      "SwaggerKey": "policy",
+      "QoSOptions": { "ExceptionsAllowedBeforeBreaking": 3, "DurationOfBreak": 30000, "TimeoutValue": 30000 }
+    },
+    {
+      "DownstreamPathTemplate": "/api/policies/payment/verify",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "localhost", "Port": 5002 }],
+      "UpstreamPathTemplate": "/gateway/policies/payment/verify",
+      "UpstreamHttpMethod": [ "POST" ],
+      "AuthenticationOptions": { "AuthenticationProviderKey": "Bearer", "AllowedScopes": [] },
+      "SwaggerKey": "policy",
+      "QoSOptions": { "ExceptionsAllowedBeforeBreaking": 3, "DurationOfBreak": 30000, "TimeoutValue": 30000 }
     },
     {
       "DownstreamPathTemplate": "/api/policies/my-policies",
@@ -657,7 +687,7 @@
       "QoSOptions": {
         "ExceptionsAllowedBeforeBreaking": 3,
         "DurationOfBreak": 30000,
-        "TimeoutValue": 10000
+        "TimeoutValue": 60000
       }
     },
     {

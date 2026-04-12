@@ -12,8 +12,21 @@ using SmartSure.ClaimsService.Services;
 using SmartSure.Shared.Messaging;
 using System.Text;
 
-// Load .env file for environment variables
-DotNetEnv.Env.Load();
+// Load .env — walk up from the executable directory to find the .env in the project root.
+// This works whether running via VS (bin/Debug/net10.0), dotnet run, or dotnet exec.
+{
+    var envPath = Path.Combine(AppContext.BaseDirectory, ".env");
+    if (!File.Exists(envPath))
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, ".env")))
+            dir = dir.Parent;
+        if (dir != null)
+            envPath = Path.Combine(dir.FullName, ".env");
+    }
+    if (File.Exists(envPath))
+        DotNetEnv.Env.Load(envPath);
+}
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddSerilogLogging("ClaimsService");
@@ -77,6 +90,7 @@ builder.Services.AddScoped<IClaimEventPublisher, ClaimEventPublisher>();
 builder.Services.AddScoped<IMegaStorageService, MegaStorageService>();
 builder.Services.AddScoped<IClaimService, ClaimService>();
 builder.Services.AddScoped<IClaimAdminService, ClaimAdminService>();
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddAuthorization();
@@ -126,6 +140,15 @@ app.UseCors("ServiceCors");
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseGlobalExceptionHandler();
-app.MapControllers();
 
+// Serve uploaded claim documents as static files from /uploads/*
+var uploadsPath = Path.Combine(app.Environment.ContentRootPath, "uploads");
+Directory.CreateDirectory(uploadsPath);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsPath),
+    RequestPath = "/uploads"
+});
+
+app.MapControllers();
 app.Run();

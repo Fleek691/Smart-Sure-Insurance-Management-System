@@ -1,11 +1,11 @@
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using SmartSure.PolicyService.DTOs;
 using SmartSure.PolicyService.Models;
 using SmartSure.PolicyService.Repositories;
 using SmartSure.Shared.Constants;
 using SmartSure.Shared.Events;
 using SmartSure.Shared.Exceptions;
-
 namespace SmartSure.PolicyService.Services;
 
 public class PolicyService : IPolicyService
@@ -13,15 +13,18 @@ public class PolicyService : IPolicyService
     private readonly IPolicyRepository _policyRepository;
     private readonly IMemoryCache _memoryCache;
     private readonly IPolicyEventPublisher _eventPublisher;
+    private readonly ILogger<PolicyService> _logger;
 
     public PolicyService(
         IPolicyRepository policyRepository,
         IMemoryCache memoryCache,
-        IPolicyEventPublisher eventPublisher)
+        IPolicyEventPublisher eventPublisher,
+        ILogger<PolicyService> logger)
     {
         _policyRepository = policyRepository;
         _memoryCache = memoryCache;
         _eventPublisher = eventPublisher;
+        _logger = logger;
     }
 
     public async Task<List<InsuranceProductDto>> GetProductsAsync()
@@ -148,6 +151,26 @@ public class PolicyService : IPolicyService
 
     public async Task<PolicyDto> PurchasePolicyAsync(Guid userId, PurchasePolicyDto dto)
     {
+        if (dto.CoverageAmount < 10_000)
+        {
+            throw new ValidationException("Coverage amount must be at least ₹10,000.");
+        }
+
+        if (dto.CoverageAmount > 50_000_000)
+        {
+            throw new ValidationException("Coverage amount cannot exceed ₹5,00,00,000.");
+        }
+
+        if (dto.InsuranceDate.Date < DateTime.UtcNow.Date)
+        {
+            throw new ValidationException("Insurance start date cannot be in the past.");
+        }
+
+        if (dto.InsuranceDate.Date > DateTime.UtcNow.Date.AddYears(1))
+        {
+            throw new ValidationException("Insurance start date cannot be more than 1 year in the future.");
+        }
+
         var premiumResult = await CalculatePremiumAsync(dto.ProductId, dto.CoverageAmount, dto.TermMonths);
         var product = await _policyRepository.GetProductByIdAsync(dto.ProductId)
                       ?? throw new NotFoundException("Product not found.");
@@ -175,13 +198,20 @@ public class PolicyService : IPolicyService
         await _policyRepository.SaveChangesAsync();
         InvalidatePolicyCache(policy.PolicyId, policy.UserId);
 
-        await _eventPublisher.PublishActivatedAsync(new PolicyActivatedEvent
+        try
         {
-            PolicyId = policy.PolicyId,
-            UserId = policy.UserId,
-            PolicyNumber = policy.PolicyNumber,
-            ActivatedAtUtc = DateTime.UtcNow
-        });
+            await _eventPublisher.PublishActivatedAsync(new PolicyActivatedEvent
+            {
+                PolicyId = policy.PolicyId,
+                UserId = policy.UserId,
+                PolicyNumber = policy.PolicyNumber,
+                ActivatedAtUtc = DateTime.UtcNow
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "PolicyActivatedEvent publish failed for policy {PolicyId}. RabbitMQ may be down.", policy.PolicyId);
+        }
 
         return MapPolicy(policy);
     }
@@ -229,12 +259,17 @@ public class PolicyService : IPolicyService
 
         if (policy.UserId != userId)
         {
-            throw new UnauthorizedException("You are not allowed to cancel this policy.");
+            throw new ForbiddenException("You are not allowed to cancel this policy.");
         }
 
         if (policy.Status == PolicyStatus.Cancelled)
         {
-            throw new ValidationException("Policy is already cancelled.");
+            throw new BusinessRuleException("This policy has already been cancelled.");
+        }
+
+        if (policy.Status == PolicyStatus.Expired)
+        {
+            throw new BusinessRuleException("An expired policy cannot be cancelled.");
         }
 
         policy.Status = PolicyStatus.Cancelled;
@@ -243,14 +278,21 @@ public class PolicyService : IPolicyService
         await _policyRepository.SaveChangesAsync();
         InvalidatePolicyCache(policy.PolicyId, policy.UserId);
 
-        await _eventPublisher.PublishCancelledAsync(new PolicyCancelledEvent
+        try
         {
-            PolicyId = policy.PolicyId,
-            UserId = policy.UserId,
-            PolicyNumber = policy.PolicyNumber,
-            Reason = "Requested by customer",
-            CancelledAtUtc = DateTime.UtcNow
-        });
+            await _eventPublisher.PublishCancelledAsync(new PolicyCancelledEvent
+            {
+                PolicyId = policy.PolicyId,
+                UserId = policy.UserId,
+                PolicyNumber = policy.PolicyNumber,
+                Reason = "Requested by customer",
+                CancelledAtUtc = DateTime.UtcNow
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "PolicyCancelledEvent publish failed for policy {PolicyId}. RabbitMQ may be down.", policy.PolicyId);
+        }
 
         return MapPolicy(policy);
     }
@@ -290,26 +332,33 @@ public class PolicyService : IPolicyService
         await _policyRepository.SaveChangesAsync();
         InvalidatePolicyCache(policy.PolicyId, policy.UserId);
 
-        if (nextStatus == PolicyStatus.Active)
+        try
         {
-            await _eventPublisher.PublishActivatedAsync(new PolicyActivatedEvent
+            if (nextStatus == PolicyStatus.Active)
             {
-                PolicyId = policy.PolicyId,
-                UserId = policy.UserId,
-                PolicyNumber = policy.PolicyNumber,
-                ActivatedAtUtc = DateTime.UtcNow
-            });
+                await _eventPublisher.PublishActivatedAsync(new PolicyActivatedEvent
+                {
+                    PolicyId = policy.PolicyId,
+                    UserId = policy.UserId,
+                    PolicyNumber = policy.PolicyNumber,
+                    ActivatedAtUtc = DateTime.UtcNow
+                });
+            }
+            else if (nextStatus == PolicyStatus.Cancelled)
+            {
+                await _eventPublisher.PublishCancelledAsync(new PolicyCancelledEvent
+                {
+                    PolicyId = policy.PolicyId,
+                    UserId = policy.UserId,
+                    PolicyNumber = policy.PolicyNumber,
+                    Reason = "Cancelled by admin",
+                    CancelledAtUtc = DateTime.UtcNow
+                });
+            }
         }
-        else if (nextStatus == PolicyStatus.Cancelled)
+        catch (Exception ex)
         {
-            await _eventPublisher.PublishCancelledAsync(new PolicyCancelledEvent
-            {
-                PolicyId = policy.PolicyId,
-                UserId = policy.UserId,
-                PolicyNumber = policy.PolicyNumber,
-                Reason = "Cancelled by admin",
-                CancelledAtUtc = DateTime.UtcNow
-            });
+            _logger.LogWarning(ex, "Policy status event publish failed for policy {PolicyId}. RabbitMQ may be down.", policy.PolicyId);
         }
 
         return MapPolicy(policy);

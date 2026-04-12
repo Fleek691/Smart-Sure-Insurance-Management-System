@@ -82,6 +82,11 @@ public class PolicyRepository : IPolicyRepository
         await _context.Policies.AddAsync(policy);
     }
 
+    public async Task AddPaymentAsync(Payment payment)
+    {
+        await _context.Payments.AddAsync(payment);
+    }
+
     public Task SaveChangesAsync()
     {
         return _context.SaveChangesAsync();

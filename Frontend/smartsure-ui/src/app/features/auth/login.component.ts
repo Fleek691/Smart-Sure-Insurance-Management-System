@@ -4,12 +4,11 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { AuthStateService } from '../../core/services/auth-state.service';
-import { SharedModule } from '../../shared/shared.module';
 
 @Component({
   selector: 'app-login-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, SharedModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   template: `
     <div class="login-shell">
 
@@ -251,7 +250,6 @@ import { SharedModule } from '../../shared/shared.module';
             </div>
 
             <p class="error-msg" *ngIf="errorMessage">{{ errorMessage }}</p>
-            <p class="info-msg" *ngIf="infoMessage">{{ infoMessage }}</p>
 
             <button type="submit" class="btn-primary" [disabled]="loading">
               <span *ngIf="!loading">Sign in</span>
@@ -579,7 +577,6 @@ import { SharedModule } from '../../shared/shared.module';
     .signup-prompt a:hover { text-decoration: underline; }
 
     .error-msg { color: #d1495b; font-size: 0.88rem; margin: 0 0 0.8rem; }
-    .info-msg  { color: #5f6b82;  font-size: 0.88rem; margin: 0 0 0.8rem; }
 
     /* ── RESPONSIVE ── */
     @media (max-width: 860px) {
@@ -599,10 +596,9 @@ export class LoginComponent implements OnInit {
   model = { email: '', password: '' };
   loading = false;
   errorMessage = '';
-  infoMessage = '';
 
   constructor(
-    public readonly authState: AuthStateService,
+    private readonly authState: AuthStateService,
     private readonly authService: AuthService,
     private readonly router: Router
   ) {}
@@ -615,7 +611,6 @@ export class LoginComponent implements OnInit {
 
   login(): void {
     this.errorMessage = '';
-    this.infoMessage = '';
     this.loading = true;
 
     this.authService.login(this.model).subscribe({
@@ -625,9 +620,6 @@ export class LoginComponent implements OnInit {
       },
       error: (error) => {
         this.errorMessage = this.resolveError(error);
-        this.loading = false;
-      },
-      complete: () => {
         this.loading = false;
       }
     });

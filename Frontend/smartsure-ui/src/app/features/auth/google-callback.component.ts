@@ -6,6 +6,7 @@ import { AuthResponseDto } from '../../models/api-models';
 @Component({
   selector: 'app-google-callback',
   standalone: true,
+  imports: [],
   template: `
     <div class="callback-shell">
       <div class="spinner-box">

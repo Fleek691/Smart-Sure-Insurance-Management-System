@@ -27,12 +27,23 @@ public class ProfileService(IMemoryCache memoryCache, IUserRepository userReposi
 
     public async Task<ProfileDto> UpdateProfileAsync(Guid userId, UpdateProfileDto dto)
     {
+        if (string.IsNullOrWhiteSpace(dto.FullName) || dto.FullName.Trim().Length < 2)
+        {
+            throw new ValidationException("Full name must be at least 2 characters.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.PhoneNumber) &&
+            !System.Text.RegularExpressions.Regex.IsMatch(dto.PhoneNumber.Trim(), @"^\+?[\d\s\-]{7,15}$"))
+        {
+            throw new ValidationException("Please provide a valid phone number.");
+        }
+
         var user = await _userRepository.GetByIdAsync(userId)
                    ?? throw new NotFoundException("User not found.");
 
-        user.FullName = dto.FullName;
-        user.PhoneNumber = dto.PhoneNumber;
-        user.Address = dto.Address;
+        user.FullName = dto.FullName.Trim();
+        user.PhoneNumber = string.IsNullOrWhiteSpace(dto.PhoneNumber) ? null : dto.PhoneNumber.Trim();
+        user.Address = string.IsNullOrWhiteSpace(dto.Address) ? null : dto.Address.Trim();
         await _userRepository.SaveChangesAsync();
 
         InvalidateUserCache(user.UserId);
