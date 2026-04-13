@@ -135,7 +135,6 @@ public class PolicyService : IPolicyService
         {
             throw new ValidationException("Coverage amount must be greater than zero.");
         }
-
         var coverageFactor = coverageAmount / 100000m;
         var termFactor = termMonths / 12m;
         var monthlyPremium = Math.Round(product.BasePremium * coverageFactor * Math.Max(termFactor, 0.5m), 2);
@@ -151,16 +150,6 @@ public class PolicyService : IPolicyService
 
     public async Task<PolicyDto> PurchasePolicyAsync(Guid userId, PurchasePolicyDto dto)
     {
-        if (dto.CoverageAmount < 10_000)
-        {
-            throw new ValidationException("Coverage amount must be at least ₹10,000.");
-        }
-
-        if (dto.CoverageAmount > 50_000_000)
-        {
-            throw new ValidationException("Coverage amount cannot exceed ₹5,00,00,000.");
-        }
-
         if (dto.InsuranceDate.Date < DateTime.UtcNow.Date)
         {
             throw new ValidationException("Insurance start date cannot be in the past.");

@@ -27,8 +27,14 @@ public class ClaimServiceTests
         _publisher = new Mock<IClaimEventPublisher>();
         _storage   = new Mock<IMegaStorageService>();
         _cache     = new MemoryCache(new MemoryCacheOptions());
-        _sut       = new SmartSure.ClaimsService.Services.ClaimService(
-            _repo.Object, _publisher.Object, _cache, _storage.Object);
+
+        var policyVerification = new Mock<IPolicyVerificationService>();
+        // Default: return null (policy verification skipped when token is empty)
+        policyVerification.Setup(p => p.GetPolicyStatusAsync(It.IsAny<Guid>(), It.IsAny<string>()))
+                          .ReturnsAsync((string?)null);
+
+        _sut = new SmartSure.ClaimsService.Services.ClaimService(
+            _repo.Object, _publisher.Object, _cache, _storage.Object, policyVerification.Object);
     }
 
     [TearDown]
