@@ -4,7 +4,7 @@ namespace SmartSure.ClaimsService.Services;
 
 public interface IClaimService
 {
-    Task<ClaimDto> CreateClaimAsync(Guid userId, CreateClaimDto dto);
+    Task<ClaimDto> CreateClaimAsync(Guid userId, CreateClaimDto dto, string bearerToken = "");
     Task<List<ClaimDto>> GetMyClaimsAsync(Guid userId);
     Task<ClaimDto> GetClaimAsync(Guid claimId, Guid userId, bool isAdmin);
     Task<ClaimDto> SubmitClaimAsync(Guid claimId, Guid userId);

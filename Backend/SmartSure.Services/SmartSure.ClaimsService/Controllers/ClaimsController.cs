@@ -21,7 +21,8 @@ public class ClaimsController(IClaimService claimService, IClaimAdminService cla
     public async Task<ClaimDto> Create([FromBody] CreateClaimDto dto)
     {
         var userId = GetUserId();
-        return await _claimService.CreateClaimAsync(userId, dto);
+        var bearerToken = Request.Headers.Authorization.ToString().Replace("Bearer ", "").Trim();
+        return await _claimService.CreateClaimAsync(userId, dto, bearerToken);
     }
 
     [HttpGet("my-claims")]
@@ -33,11 +34,12 @@ public class ClaimsController(IClaimService claimService, IClaimAdminService cla
     }
 
     [HttpGet("{id:guid}")]
-    [Authorize(Roles = Roles.Customer)]
+    [Authorize(Roles = $"{Roles.Customer},{Roles.Admin}")]
     public async Task<ClaimDto> GetById(Guid id)
     {
-        var userId = GetUserId();
-        return await _claimService.GetClaimAsync(id, userId, false);
+        var userId  = GetUserId();
+        var isAdmin = User.IsInRole(Roles.Admin);
+        return await _claimService.GetClaimAsync(id, userId, isAdmin);
     }
 
     [HttpPost("{id:guid}/submit")]
@@ -57,11 +59,12 @@ public class ClaimsController(IClaimService claimService, IClaimAdminService cla
     }
 
     [HttpGet("{id:guid}/documents")]
-    [Authorize(Roles = Roles.Customer)]
+    [Authorize(Roles = $"{Roles.Customer},{Roles.Admin}")]
     public async Task<List<ClaimDocumentDto>> GetDocuments(Guid id)
     {
-        var userId = GetUserId();
-        return await _claimService.GetDocumentsAsync(id, userId, false);
+        var userId  = GetUserId();
+        var isAdmin = User.IsInRole(Roles.Admin);
+        return await _claimService.GetDocumentsAsync(id, userId, isAdmin);
     }
 
     [HttpDelete("{id:guid}/documents/{docId:guid}")]

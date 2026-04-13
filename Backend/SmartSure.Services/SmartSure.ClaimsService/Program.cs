@@ -88,6 +88,7 @@ builder.Services.AddMassTransit(config =>
 builder.Services.AddScoped<IClaimRepository, ClaimRepository>();
 builder.Services.AddScoped<IClaimEventPublisher, ClaimEventPublisher>();
 builder.Services.AddScoped<IMegaStorageService, MegaStorageService>();
+builder.Services.AddHttpClient<IPolicyVerificationService, PolicyVerificationService>();
 builder.Services.AddScoped<IClaimService, ClaimService>();
 builder.Services.AddScoped<IClaimAdminService, ClaimAdminService>();
 

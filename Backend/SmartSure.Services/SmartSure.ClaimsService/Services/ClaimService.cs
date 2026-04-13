@@ -14,20 +14,23 @@ public class ClaimService : IClaimService
     private readonly IClaimEventPublisher _eventPublisher;
     private readonly IMemoryCache _memoryCache;
     private readonly IMegaStorageService _megaStorageService;
+    private readonly IPolicyVerificationService _policyVerification;
 
     public ClaimService(
         IClaimRepository claimRepository,
         IClaimEventPublisher eventPublisher,
         IMemoryCache memoryCache,
-        IMegaStorageService megaStorageService)
+        IMegaStorageService megaStorageService,
+        IPolicyVerificationService policyVerification)
     {
         _claimRepository = claimRepository;
         _eventPublisher = eventPublisher;
         _memoryCache = memoryCache;
         _megaStorageService = megaStorageService;
+        _policyVerification = policyVerification;
     }
 
-    public async Task<ClaimDto> CreateClaimAsync(Guid userId, CreateClaimDto dto)
+    public async Task<ClaimDto> CreateClaimAsync(Guid userId, CreateClaimDto dto, string bearerToken = "")
     {
         if (dto.PolicyId == Guid.Empty)
         {
@@ -42,6 +45,23 @@ public class ClaimService : IClaimService
         if (dto.ClaimAmount <= 0)
         {
             throw new ValidationException("Claim amount must be greater than zero.");
+        }
+
+        // Verify the policy is ACTIVE before allowing a claim
+        if (!string.IsNullOrWhiteSpace(bearerToken))
+        {
+            var policyStatus = await _policyVerification.GetPolicyStatusAsync(dto.PolicyId, bearerToken);
+            if (policyStatus is not null)
+            {
+                if (policyStatus == "CANCELLED")
+                    throw new BusinessRuleException("You cannot file a claim against a cancelled policy.");
+
+                if (policyStatus == "EXPIRED")
+                    throw new BusinessRuleException("You cannot file a claim against an expired policy.");
+
+                if (policyStatus != "ACTIVE")
+                    throw new BusinessRuleException($"Claims can only be filed against active policies. This policy is currently '{policyStatus}'.");
+            }
         }
 
         var now = DateTime.UtcNow;
