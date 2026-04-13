@@ -150,15 +150,48 @@ import { SharedModule } from '../../shared/shared.module';
             </h2>
           </div>
           <div class="security-grid">
-            <div class="security-item">
+
+            <!-- Password change — step 1: request OTP -->
+            <div class="security-item" *ngIf="!passwordResetSent">
               <div class="security-info">
                 <strong>Password</strong>
-                <span>Change your account password. You'll receive a reset link via email.</span>
+                <span>Change your account password. An OTP will be sent to your email.</span>
               </div>
-              <button type="button" class="secondary-button" (click)="requestPasswordChange()" [disabled]="passwordResetSent">
-                {{ passwordResetSent ? 'Link Sent ✓' : 'Change Password' }}
+              <button type="button" class="secondary-button" (click)="requestPasswordChange()">
+                Change Password
               </button>
             </div>
+
+            <!-- Password change — step 2: enter OTP + new password -->
+            <div class="reset-form-card" *ngIf="passwordResetSent">
+              <div class="reset-form-header">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18"><path d="M3 8l7-5 7 5v9a1 1 0 01-1 1H4a1 1 0 01-1-1V8z"/><path d="M8 18V12h4v6"/></svg>
+                <div>
+                  <strong>Enter your OTP</strong>
+                  <span>We sent a 6-digit code to <strong>{{ profile.email }}</strong></span>
+                </div>
+              </div>
+              <div class="reset-fields">
+                <label class="form-field">
+                  <span class="field-label">OTP code</span>
+                  <input name="resetOtp" [(ngModel)]="resetModel.token" maxlength="6" placeholder="6-digit code" autocomplete="one-time-code"/>
+                </label>
+                <label class="form-field">
+                  <span class="field-label">New password</span>
+                  <input name="newPassword" [(ngModel)]="resetModel.newPassword" type="password" placeholder="At least 8 characters" autocomplete="new-password"/>
+                </label>
+              </div>
+              <p class="field-hint" style="margin-bottom:0.75rem;">Password must contain uppercase, lowercase, digit and special character (&#64;$!%*?&amp;#)</p>
+              <p class="error-msg" *ngIf="resetError">{{ resetError }}</p>
+              <p class="success-msg" *ngIf="resetSuccess">{{ resetSuccess }}</p>
+              <div class="reset-actions">
+                <button type="button" class="ghost-btn" (click)="cancelReset()">Cancel</button>
+                <button type="button" class="primary-button" (click)="confirmPasswordReset()" [disabled]="resetLoading || !resetModel.token || !resetModel.newPassword">
+                  {{ resetLoading ? 'Updating...' : 'Update Password' }}
+                </button>
+              </div>
+            </div>
+
             <div class="security-item">
               <div class="security-info">
                 <strong>Account Status</strong>
@@ -269,6 +302,25 @@ import { SharedModule } from '../../shared/shared.module';
     .active-text { color: #059669 !important; }
     .inactive-text { color: #dc2626 !important; }
 
+    /* ── Password reset inline form ── */
+    .reset-form-card {
+      padding: 1.15rem; border-radius: var(--radius, 14px);
+      border: 1.5px solid rgba(84, 101, 255, 0.15);
+      background: rgba(84, 101, 255, 0.03);
+    }
+    .reset-form-header {
+      display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 1rem;
+      color: var(--primary);
+    }
+    .reset-form-header strong { display: block; font-size: 0.92rem; color: var(--ink); }
+    .reset-form-header span { font-size: 0.82rem; color: var(--muted); }
+    .reset-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.5rem; }
+    .reset-actions { display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem; margin-top: 0.75rem; }
+    .ghost-btn { background: none; border: 0; color: var(--muted); font-size: 0.88rem; cursor: pointer; padding: 0; }
+    .ghost-btn:hover { color: var(--ink); }
+    .error-msg { color: #ef4444; font-size: 0.85rem; margin: 0 0 0.25rem; }
+    .success-msg { color: #059669; font-size: 0.85rem; margin: 0 0 0.25rem; }
+
     /* ── Buttons ── */
     .primary-button, .secondary-button {
       border: 0; border-radius: var(--radius-sm, 10px); padding: 0.82rem 1.5rem;
@@ -322,6 +374,10 @@ export class ProfileComponent implements OnInit {
   successMsg = '';
   errorMsg = '';
   passwordResetSent = false;
+  resetLoading = false;
+  resetError = '';
+  resetSuccess = '';
+  resetModel = { token: '', newPassword: '' };
 
   editModel: UpdateProfileDto = {
     fullName: '',
@@ -404,11 +460,43 @@ export class ProfileComponent implements OnInit {
     this.authService.requestPasswordReset({ email: this.profile.email }).subscribe({
       next: () => {
         this.passwordResetSent = true;
-        this.successMsg = 'Password reset link has been sent to your email.';
+        this.resetError = '';
+        this.successMsg = 'OTP sent to your email. Enter it below to set a new password.';
       },
       error: () => {
-        this.errorMsg = 'Unable to send password reset email. Please try again.';
+        this.errorMsg = 'Unable to send OTP. Please try again.';
       }
     });
+  }
+
+  confirmPasswordReset(): void {
+    if (!this.profile?.email) return;
+    this.resetLoading = true;
+    this.resetError = '';
+    this.resetSuccess = '';
+    this.authService.resetPassword({
+      email: this.profile.email,
+      token: this.resetModel.token.trim(),
+      newPassword: this.resetModel.newPassword
+    }).subscribe({
+      next: () => {
+        this.resetSuccess = 'Password updated successfully!';
+        this.resetLoading = false;
+        setTimeout(() => this.cancelReset(), 2000);
+      },
+      error: (err) => {
+        const r = err as { error?: { detail?: string; title?: string }; message?: string };
+        this.resetError = r?.error?.detail ?? r?.error?.title ?? r?.message ?? 'Invalid or expired OTP.';
+        this.resetLoading = false;
+      }
+    });
+  }
+
+  cancelReset(): void {
+    this.passwordResetSent = false;
+    this.resetModel = { token: '', newPassword: '' };
+    this.resetError = '';
+    this.resetSuccess = '';
+    this.successMsg = '';
   }
 }
