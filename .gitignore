@@ -18,7 +18,7 @@
 # HTTP test files (auto-generated boilerplate)
 *.http
 
-# Backend environment secrets
+# Backend environment secrets — never commit .env files
 Backend/**/.env
 
 # Logs
@@ -59,6 +59,14 @@ Thumbs.db
 # Rider
 .idea/
 *.sln.iml
-.tmp_arch
+
+# Temp / scratch files
+.tmp_arch/
 arch_doc.txt
 project_doc.txt
+
+# Uploaded claim documents (local fallback storage — not for source control)
+Backend/SmartSure.Services/SmartSure.ClaimsService/uploads/
+
+# Test results and coverage reports
+Backend/SmartSure.Tests/TestResults/
