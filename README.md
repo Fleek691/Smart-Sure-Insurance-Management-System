@@ -50,5 +50,3 @@ Smart-Sure is a comprehensive insurance management platform designed to streamli
 - Write meaningful commit messages and keep PRs focused
 - Ensure all tests pass before submitting PRs
 
-## License
-This project is licensed under the MIT License.
