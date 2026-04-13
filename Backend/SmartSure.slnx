@@ -3,7 +3,6 @@
     <Project Path="SmartSure.Services/SmartSure.AdminService/SmartSure.AdminService.csproj" />
     <Project Path="SmartSure.Services/SmartSure.ClaimsService/SmartSure.ClaimsService.csproj" />
     <Project Path="SmartSure.Services/SmartSure.IdentityService/SmartSure.IdentityService.csproj" />
-    <Project Path="SmartSure.Services/SmartSure.OrchestratorService/SmartSure.OrchestratorService.csproj" />
     <Project Path="SmartSure.Services/SmartSure.PolicyService/SmartSure.PolicyService.csproj" />
   </Folder>
   <Project Path="SmartSure.Gateway/SmartSure.Gateway.csproj" />
