@@ -5,8 +5,10 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import {
   AuditLogDto,
+  ClaimDocumentDto,
   ClaimDto,
   DashboardStatsDto,
+  InsuranceProductDto,
   PolicyDto,
   ProfileDto
 } from '../../models/api-models';
@@ -144,94 +146,217 @@ import { SharedModule } from '../../shared/shared.module';
           <div class="section-head">
             <div>
               <p class="eyebrow">Claims review</p>
-              <h3>Admin claim queue</h3>
+              <h3>All claims ({{ claims.length }})</h3>
             </div>
-            <app-stepper [steps]="['Review', 'Approve', 'Reject']" [activeIndex]="1"></app-stepper>
+            <div class="filter-chips">
+              <button type="button" [class.active]="claimFilter === 'ALL'" (click)="claimFilter = 'ALL'">All</button>
+              <button type="button" [class.active]="claimFilter === 'SUBMITTED'" (click)="claimFilter = 'SUBMITTED'">Submitted</button>
+              <button type="button" [class.active]="claimFilter === 'UNDER_REVIEW'" (click)="claimFilter = 'UNDER_REVIEW'">Under review</button>
+              <button type="button" [class.active]="claimFilter === 'APPROVED'" (click)="claimFilter = 'APPROVED'">Approved</button>
+              <button type="button" [class.active]="claimFilter === 'REJECTED'" (click)="claimFilter = 'REJECTED'">Rejected</button>
+            </div>
           </div>
 
-          <div class="claim-grid">
-            <article class="claim-card" *ngFor="let claim of claims" (click)="selectedClaim = claim" [class.selected]="selectedClaim?.claimId === claim.claimId">
-              <div class="policy-top">
-                <div>
-                  <strong>{{ claim.claimNumber }}</strong>
-                  <p>{{ claim.description | slice:0:80 }}{{ claim.description.length > 80 ? '...' : '' }}</p>
-                </div>
-                <app-status-badge [value]="claim.status"></app-status-badge>
-              </div>
-              <div class="policy-meta">
-                <span>{{ claim.claimAmount | formatCurrency }}</span>
-                <span>{{ claim.createdDate | date:'mediumDate' }}</span>
-              </div>
-            </article>
-          </div>
-
-          <div class="action-card" *ngIf="selectedClaim">
-            <div class="section-head">
-              <div>
-                <p class="eyebrow">Selected claim</p>
-                <h3>{{ selectedClaim.claimNumber }}</h3>
-              </div>
-              <app-status-badge [value]="selectedClaim.status"></app-status-badge>
+          <!-- Claims table -->
+          <div class="claims-table">
+            <div class="claims-table-head">
+              <span>Claim #</span>
+              <span>Description</span>
+              <span>Amount</span>
+              <span>Date</span>
+              <span>Status</span>
             </div>
-
-            <!-- Terminal state — hide all action controls -->
-            <div class="terminal-state" *ngIf="selectedClaim.status === 'APPROVED' || selectedClaim.status === 'REJECTED' || selectedClaim.status === 'CLOSED'">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="8"/><path d="M10 6v4"/><circle cx="10" cy="14" r="0.5" fill="currentColor"/></svg>
-              This claim is <strong>{{ selectedClaim.status | lowercase }}</strong> and cannot be modified further.
-              <span *ngIf="selectedClaim.adminNote">&nbsp;Note: "{{ selectedClaim.adminNote }}"</span>
+            <div class="claims-table-row"
+              *ngFor="let claim of filteredClaims"
+              (click)="selectClaim(claim)"
+              [class.selected]="selectedClaim?.claimId === claim.claimId">
+              <span class="claim-num">{{ claim.claimNumber }}</span>
+              <span class="claim-desc-cell">{{ claim.description | slice:0:60 }}{{ claim.description.length > 60 ? '…' : '' }}</span>
+              <span class="claim-amt">{{ claim.claimAmount | formatCurrency }}</span>
+              <span class="claim-dt">{{ claim.createdDate | date:'mediumDate' }}</span>
+              <app-status-badge [value]="claim.status"></app-status-badge>
             </div>
-
-            <!-- Active review controls -->
-            <ng-container *ngIf="selectedClaim.status !== 'APPROVED' && selectedClaim.status !== 'REJECTED' && selectedClaim.status !== 'CLOSED'">
-              <div class="form-row">
-                <label>
-                  <span>Review note</span>
-                  <textarea name="reviewNote" [(ngModel)]="reviewNote" rows="3" placeholder="Add review notes..."></textarea>
-                </label>
-              </div>
-              <div class="form-row two-col">
-                <label>
-                  <span>Approved amount</span>
-                  <input name="approvedAmount" [(ngModel)]="approvedAmount" type="number" min="1" placeholder="0.00" />
-                </label>
-                <label>
-                  <span>Rejection reason</span>
-                  <input name="rejectReason" [(ngModel)]="rejectReason" placeholder="Reason for rejection..." />
-                </label>
-              </div>
-              <div class="button-row">
-                <button type="button" class="secondary-button"
-                  (click)="markUnderReview()"
-                  [disabled]="actionLoading || selectedClaim.status === 'UNDER_REVIEW' || selectedClaim.status === 'DRAFT'">
-                  Mark under review
-                </button>
-                <button type="button" class="primary-button"
-                  (click)="approveClaim()"
-                  [disabled]="actionLoading || selectedClaim.status !== 'UNDER_REVIEW'">
-                  Approve
-                </button>
-                <button type="button" class="danger-button"
-                  (click)="rejectClaim()"
-                  [disabled]="actionLoading || selectedClaim.status !== 'UNDER_REVIEW'">
-                  Reject
-                </button>
-              </div>
-              <p class="action-error" *ngIf="actionError">{{ actionError }}</p>
-              <p class="action-hint" *ngIf="selectedClaim.status === 'SUBMITTED'">
-                ⚠ First click "Mark under review", then approve or reject.
-              </p>
-            </ng-container>
+            <p class="muted" *ngIf="filteredClaims.length === 0" style="padding:1rem 0;text-align:center;">No claims match this filter.</p>
           </div>
         </div>
-      </div>
 
+        <!-- Action panel -->
+        <div class="surface-card" *ngIf="selectedClaim">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Selected claim</p>
+              <h3>{{ selectedClaim.claimNumber }}</h3>
+            </div>
+            <app-status-badge [value]="selectedClaim.status"></app-status-badge>
+          </div>
+
+          <!-- Claim details summary -->
+          <div class="claim-detail-grid">
+            <div class="claim-detail-item"><span>Amount requested</span><strong>{{ selectedClaim.claimAmount | formatCurrency }}</strong></div>
+            <div class="claim-detail-item"><span>Filed on</span><strong>{{ selectedClaim.createdDate | date:'mediumDate' }}</strong></div>
+            <div class="claim-detail-item" style="grid-column:1/-1"><span>Description</span><strong>{{ selectedClaim.description }}</strong></div>
+            <div class="claim-detail-item" *ngIf="selectedClaim.adminNote"><span>Admin note</span><strong>{{ selectedClaim.adminNote }}</strong></div>
+          </div>
+
+          <!-- Terminal state -->
+          <div class="terminal-state" *ngIf="selectedClaim.status === 'APPROVED' || selectedClaim.status === 'REJECTED' || selectedClaim.status === 'CLOSED'">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="8"/><path d="M10 6v4"/><circle cx="10" cy="14" r="0.5" fill="currentColor"/></svg>
+            This claim is <strong>{{ selectedClaim.status | lowercase }}</strong> and cannot be modified further.
+            <span *ngIf="selectedClaim.adminNote">&nbsp;Note: "{{ selectedClaim.adminNote }}"</span>
+          </div>
+
+          <!-- Active review controls -->
+          <ng-container *ngIf="selectedClaim.status !== 'APPROVED' && selectedClaim.status !== 'REJECTED' && selectedClaim.status !== 'CLOSED'">
+            <div class="form-row">
+              <label>
+                <span>Review note</span>
+                <textarea name="reviewNote" [(ngModel)]="reviewNote" rows="3" placeholder="Add review notes..."></textarea>
+              </label>
+            </div>
+            <div class="form-row two-col">
+              <label>
+                <span>Approved amount</span>
+                <input name="approvedAmount" [(ngModel)]="approvedAmount" type="number" min="1" placeholder="0.00" />
+              </label>
+              <label>
+                <span>Rejection reason</span>
+                <input name="rejectReason" [(ngModel)]="rejectReason" placeholder="Reason for rejection..." />
+              </label>
+            </div>
+            <div class="button-row">
+              <button type="button" class="secondary-button"
+                (click)="markUnderReview()"
+                [disabled]="actionLoading || selectedClaim.status === 'UNDER_REVIEW' || selectedClaim.status === 'DRAFT'">
+                Mark under review
+              </button>
+              <button type="button" class="primary-button"
+                (click)="approveClaim()"
+                [disabled]="actionLoading || selectedClaim.status !== 'UNDER_REVIEW'">
+                Approve
+              </button>
+              <button type="button" class="danger-button"
+                (click)="rejectClaim()"
+                [disabled]="actionLoading || selectedClaim.status !== 'UNDER_REVIEW'">
+                Reject
+              </button>
+            </div>
+            <p class="action-error" *ngIf="actionError">{{ actionError }}</p>
+            <p class="action-hint" *ngIf="selectedClaim.status === 'SUBMITTED'">
+              ⚠ First click "Mark under review", then approve or reject.
+            </p>
+          </ng-container>
+        </div>
+
+        <!-- Documents panel — shown when a claim is selected -->
+        <div class="surface-card" *ngIf="selectedClaim">
+          <div class="section-head">
+            <h3 class="card-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Supporting documents
+            </h3>
+            <button type="button" class="ghost-link" (click)="loadAdminDocuments()">↻ Refresh</button>
+          </div>
+
+          <div class="admin-doc-list" *ngIf="adminDocuments.length > 0">
+            <div class="admin-doc-row" *ngFor="let doc of adminDocuments">
+              <div class="admin-doc-info">
+                <div class="doc-type-badge">{{ doc.fileType | uppercase }}</div>
+                <div>
+                  <strong>{{ doc.fileName }}</strong>
+                  <span>{{ doc.fileSizeKb }} KB · uploaded {{ doc.uploadedAt | date:'mediumDate' }}</span>
+                </div>
+              </div>
+              <a [href]="doc.fileUrl" target="_blank" rel="noopener noreferrer" class="ghost-link">
+                Open ↗
+              </a>
+            </div>
+          </div>
+
+          <p class="muted" *ngIf="adminDocuments.length === 0" style="padding: 0.75rem 0; text-align: center; font-size: 0.88rem;">
+            No documents uploaded for this claim.
+          </p>
+        </div>
+      </div>
       <!-- ══════════════ POLICIES TAB ══════════════ -->
       <div class="tab-content" *ngIf="view === 'policies'">
+
+        <!-- ── Insurance Products (Add / Edit / Delete) ── -->
         <div class="surface-card">
           <div class="section-head">
             <div>
-              <p class="eyebrow">Policy management</p>
-              <h3>All policies</h3>
+              <p class="eyebrow">Insurance products</p>
+              <h3>Product catalogue ({{ products.length }})</h3>
+            </div>
+            <button type="button" class="primary-button small" (click)="toggleAddProduct()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+              {{ showAddProduct ? 'Cancel' : 'Add product' }}
+            </button>
+          </div>
+
+          <!-- Add product form -->
+          <div class="add-product-form" *ngIf="showAddProduct">
+            <div class="form-row two-col">
+              <label>
+                <span>Insurance type</span>
+                <input name="newTypeName" [(ngModel)]="newProduct.typeName" placeholder="e.g. Vehicle, Home, Health" />
+              </label>
+              <label>
+                <span>Sub-type / Plan name</span>
+                <input name="newSubTypeName" [(ngModel)]="newProduct.subTypeName" placeholder="e.g. Comprehensive, Apartment" />
+              </label>
+            </div>
+            <div class="form-row two-col">
+              <label>
+                <span>Base premium (₹/month)</span>
+                <input name="newBasePremium" [(ngModel)]="newProduct.basePremium" type="number" min="1" placeholder="e.g. 8000" />
+              </label>
+              <div class="form-action">
+                <button type="button" class="primary-button" (click)="createProduct()" [disabled]="productLoading || !newProduct.typeName || !newProduct.subTypeName || !newProduct.basePremium">
+                  {{ productLoading ? 'Saving...' : 'Save product' }}
+                </button>
+              </div>
+            </div>
+            <p class="action-error" *ngIf="productError">{{ productError }}</p>
+          </div>
+
+          <!-- Product list -->
+          <div class="product-table">
+            <div class="product-table-head">
+              <span>Type</span>
+              <span>Plan</span>
+              <span>Base premium</span>
+              <span>Actions</span>
+            </div>
+            <div class="product-row" *ngFor="let p of products">
+              <ng-container *ngIf="editingProductId !== p.productId">
+                <span class="type-badge">{{ p.typeName }}</span>
+                <span>{{ p.subTypeName }}</span>
+                <span class="premium-val">{{ p.basePremium | formatCurrency }}/mo</span>
+                <div class="row-actions">
+                  <button type="button" class="ghost-link" (click)="startEditProduct(p)">Edit</button>
+                  <button type="button" class="ghost-link danger-link" (click)="deleteProduct(p.productId)" [disabled]="productLoading">Delete</button>
+                </div>
+              </ng-container>
+              <ng-container *ngIf="editingProductId === p.productId">
+                <input [(ngModel)]="editProduct.typeName" placeholder="Type" class="inline-input" />
+                <input [(ngModel)]="editProduct.subTypeName" placeholder="Plan" class="inline-input" />
+                <input [(ngModel)]="editProduct.basePremium" type="number" placeholder="Premium" class="inline-input" />
+                <div class="row-actions">
+                  <button type="button" class="ghost-link" (click)="saveEditProduct(p.productId)" [disabled]="productLoading">Save</button>
+                  <button type="button" class="ghost-link" (click)="cancelEditProduct()">Cancel</button>
+                </div>
+              </ng-container>
+            </div>
+            <p class="muted" *ngIf="products.length === 0" style="padding: 1rem 0; text-align:center;">No products yet. Add one above.</p>
+          </div>
+        </div>
+
+        <!-- ── Customer Policies (status management) ── -->
+        <div class="surface-card">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Customer policies</p>
+              <h3>All policies ({{ policies.length }})</h3>
             </div>
           </div>
 
@@ -536,6 +661,106 @@ import { SharedModule } from '../../shared/shared.module';
       opacity: 0.38; cursor: not-allowed; pointer-events: none;
     }
 
+    /* ── Filter chips ── */
+    .filter-chips { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    .filter-chips button {
+      border: 1px solid rgba(84,101,255,0.15); background: transparent;
+      border-radius: var(--radius-full); padding: 0.35rem 0.85rem;
+      font-size: 0.78rem; font-weight: 600; color: var(--muted); cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-chips button:hover { border-color: var(--primary); color: var(--primary); }
+    .filter-chips button.active { background: var(--primary); border-color: var(--primary); color: white; }
+
+    /* ── Claims table ── */
+    .claims-table { display: grid; gap: 0; margin-top: 0.75rem; }
+    .claims-table-head {
+      display: grid; grid-template-columns: 1.4fr 2fr 1fr 1fr 1fr;
+      gap: 1rem; padding: 0.5rem 0.75rem;
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--muted);
+    }
+    .claims-table-row {
+      display: grid; grid-template-columns: 1.4fr 2fr 1fr 1fr 1fr;
+      gap: 1rem; align-items: center; padding: 0.85rem 0.75rem;
+      border-top: 1px solid rgba(84,101,255,0.06);
+      cursor: pointer; transition: background 0.15s; border-radius: 8px;
+    }
+    .claims-table-row:hover { background: rgba(84,101,255,0.03); }
+    .claims-table-row.selected { background: rgba(84,101,255,0.06); }
+    .claim-num { font-weight: 600; font-size: 0.85rem; color: var(--ink); }
+    .claim-desc-cell { font-size: 0.85rem; color: var(--muted); }
+    .claim-amt { font-weight: 600; color: var(--primary); font-size: 0.88rem; }
+    .claim-dt { font-size: 0.82rem; color: var(--muted); }
+
+    /* ── Claim detail grid ── */
+    .claim-detail-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;
+      margin-bottom: 1.25rem;
+    }
+    .claim-detail-item {
+      display: grid; gap: 0.2rem; padding: 0.75rem 1rem;
+      border-radius: var(--radius-sm); background: rgba(255,255,255,0.75);
+      border: 1px solid rgba(84,101,255,0.06);
+    }
+    .claim-detail-item span { font-size: 0.72rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    .claim-detail-item strong { font-size: 0.9rem; color: var(--ink); }
+
+    /* ── Admin document list ── */
+    .admin-doc-list { display: grid; gap: 0.5rem; margin-top: 0.5rem; }
+    .admin-doc-row {
+      display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+      padding: 0.75rem 1rem; border-radius: var(--radius-sm);
+      border: 1px solid rgba(84,101,255,0.08); background: rgba(255,255,255,0.7);
+      transition: border-color 0.15s;
+    }
+    .admin-doc-row:hover { border-color: rgba(84,101,255,0.2); }
+    .admin-doc-info { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+    .doc-type-badge {
+      background: rgba(84,101,255,0.08); color: var(--primary);
+      font-size: 0.68rem; font-weight: 700; padding: 0.2rem 0.5rem;
+      border-radius: 6px; letter-spacing: 0.06em; flex-shrink: 0;
+    }
+    .admin-doc-info strong { display: block; font-size: 0.88rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+    .admin-doc-info span { display: block; font-size: 0.75rem; color: var(--muted); }
+
+    /* ── Product management ── */
+    .add-product-form {
+      background: rgba(84, 101, 255, 0.03); border: 1px solid rgba(84, 101, 255, 0.1);
+      border-radius: var(--radius-sm); padding: 1rem; margin-bottom: 1.25rem;
+    }
+    .product-table { display: grid; gap: 0; margin-top: 0.5rem; }
+    .product-table-head {
+      display: grid; grid-template-columns: 1fr 1.5fr 1fr auto;
+      gap: 1rem; padding: 0.5rem 0.75rem;
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--muted);
+    }
+    .product-row {
+      display: grid; grid-template-columns: 1fr 1.5fr 1fr auto;
+      gap: 1rem; align-items: center; padding: 0.75rem;
+      border-top: 1px solid rgba(84, 101, 255, 0.06);
+      font-size: 0.9rem; color: var(--ink);
+      transition: background 0.15s;
+    }
+    .product-row:hover { background: rgba(84, 101, 255, 0.02); }
+    .type-badge {
+      display: inline-block; background: rgba(84, 101, 255, 0.08); color: var(--primary);
+      font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.6rem;
+      border-radius: var(--radius-full); text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .premium-val { font-weight: 600; color: var(--primary); }
+    .row-actions { display: flex; gap: 0.75rem; }
+    .danger-link { color: #ef4444 !important; }
+    .danger-link:hover { color: #dc2626 !important; }
+    .inline-input {
+      border: 1.5px solid rgba(84, 101, 255, 0.2); border-radius: 8px;
+      padding: 0.4rem 0.6rem; font-size: 0.85rem; width: 100%;
+      background: white; color: var(--ink);
+    }
+    .inline-input:focus { outline: none; border-color: var(--primary-2); }
+    .primary-button.small { padding: 0.55rem 1rem; font-size: 0.82rem; }
+
     /* ── User tab extras ── */
     .user-role-tag { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--primary); background: rgba(84,101,255,0.08); padding: 0.15rem 0.5rem; border-radius: var(--radius-full); display: inline-block; margin-top: 0.25rem; }
     .user-actions { display: flex; align-items: center; gap: 1rem; flex-shrink: 0; }
@@ -557,17 +782,48 @@ export class AdminConsoleComponent implements OnInit {
   policies: PolicyDto[] = [];
   users: ProfileDto[] = [];
   auditLogs: AuditLogDto[] = [];
+  products: InsuranceProductDto[] = [];
   selectedClaim: ClaimDto | null = null;
   selectedPolicy: PolicyDto | null = null;
+  adminDocuments: ClaimDocumentDto[] = [];
   reviewNote = '';
   approvedAmount = 0;
   rejectReason = '';
   policyStatus = 'ACTIVE';
   actionError = '';
   actionLoading = false;
+  claimFilter = 'ALL';
+
+  // ── Product management state ──
+  showAddProduct = false;
+  editingProductId: number | null = null;
+  productLoading = false;
+  productError = '';
+  newProduct = { typeName: '', subTypeName: '', basePremium: 0 };
+  editProduct = { typeName: '', subTypeName: '', basePremium: 0 };
 
   get pendingClaims(): ClaimDto[] {
     return this.claims.filter(c => c.status === 'SUBMITTED' || c.status === 'UNDER_REVIEW').slice(0, 5);
+  }
+
+  get filteredClaims(): ClaimDto[] {
+    if (this.claimFilter === 'ALL') return this.claims;
+    return this.claims.filter(c => c.status === this.claimFilter);
+  }
+
+  selectClaim(claim: ClaimDto): void {
+    this.selectedClaim = claim;
+    this.actionError = '';
+    this.adminDocuments = [];
+    this.loadAdminDocuments();
+  }
+
+  loadAdminDocuments(): void {
+    if (!this.selectedClaim) return;
+    this.claimsService.getDocuments(this.selectedClaim.claimId).subscribe({
+      next: (docs) => { this.adminDocuments = docs; },
+      error: () => { this.adminDocuments = []; }
+    });
   }
 
   constructor(
@@ -594,13 +850,15 @@ export class AdminConsoleComponent implements OnInit {
       stats: this.adminService.getDashboardStats(),
       claims: this.claimsService.getAllClaimsForAdmin(),
       policies: this.policyService.getAllPoliciesForAdmin(),
+      products: this.policyService.getProducts(),
       users: this.authService.getUsers(),
       auditLogs: this.adminService.getAuditLogs(undefined, undefined, undefined, undefined, 1, 10)
     }).subscribe({
-      next: ({ stats, claims, policies, users, auditLogs }) => {
+      next: ({ stats, claims, policies, products, users, auditLogs }) => {
         this.stats = stats;
         this.claims = claims;
         this.policies = policies;
+        this.products = products;
         this.users = users;
         this.auditLogs = auditLogs.items;
       },
@@ -658,15 +916,77 @@ export class AdminConsoleComponent implements OnInit {
   }
 
   updatePolicyStatus(): void {
-    if (!this.selectedPolicy) {
-      return;
-    }
-
+    if (!this.selectedPolicy) return;
     this.policyService.updatePolicyStatus(this.selectedPolicy.policyId, this.policyStatus).subscribe({
-      next: (policy) => {
-        this.selectedPolicy = policy;
-        this.loadData();
+      next: (policy) => { this.selectedPolicy = policy; this.loadData(); }
+    });
+  }
+
+  // ── Product management ────────────────────────────────────────────────
+
+  toggleAddProduct(): void {
+    this.showAddProduct = !this.showAddProduct;
+    this.productError = '';
+    this.newProduct = { typeName: '', subTypeName: '', basePremium: 0 };
+  }
+
+  createProduct(): void {
+    this.productLoading = true;
+    this.productError = '';
+    this.policyService.createProduct(this.newProduct).subscribe({
+      next: () => {
+        this.showAddProduct = false;
+        this.newProduct = { typeName: '', subTypeName: '', basePremium: 0 };
+        this.loadProducts();
+        this.productLoading = false;
+      },
+      error: (err) => {
+        this.productError = this.resolveError(err);
+        this.productLoading = false;
       }
+    });
+  }
+
+  startEditProduct(p: InsuranceProductDto): void {
+    this.editingProductId = p.productId;
+    this.editProduct = { typeName: p.typeName, subTypeName: p.subTypeName, basePremium: p.basePremium };
+    this.productError = '';
+  }
+
+  cancelEditProduct(): void {
+    this.editingProductId = null;
+    this.productError = '';
+  }
+
+  saveEditProduct(id: number): void {
+    this.productLoading = true;
+    this.productError = '';
+    this.policyService.updateProduct(id, this.editProduct).subscribe({
+      next: () => {
+        this.editingProductId = null;
+        this.loadProducts();
+        this.productLoading = false;
+      },
+      error: (err) => {
+        this.productError = this.resolveError(err);
+        this.productLoading = false;
+      }
+    });
+  }
+
+  deleteProduct(id: number): void {
+    if (!confirm('Delete this product? This cannot be undone.')) return;
+    this.productLoading = true;
+    this.productError = '';
+    this.policyService.deleteProduct(id).subscribe({
+      next: () => { this.loadProducts(); this.productLoading = false; },
+      error: (err) => { this.productError = this.resolveError(err); this.productLoading = false; }
+    });
+  }
+
+  private loadProducts(): void {
+    this.policyService.getProducts().subscribe({
+      next: (products) => { this.products = products; }
     });
   }
 
