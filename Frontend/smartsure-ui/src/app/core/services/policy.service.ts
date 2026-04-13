@@ -1,11 +1,13 @@
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
+  CreateInsuranceProductDto,
   InsuranceProductDto,
   PaymentOrderResponseDto,
   PolicyDto,
   PremiumCalculationDto,
   PurchasePolicyDto,
+  UpdateInsuranceProductDto,
   VerifyPaymentDto
 } from '../../models/api-models';
 import { ApiService } from './api.service';
@@ -20,6 +22,18 @@ export class PolicyService {
 
   getProduct(id: number): Observable<InsuranceProductDto> {
     return this.api.get<InsuranceProductDto>(`/policies/products/${id}`);
+  }
+
+  createProduct(dto: CreateInsuranceProductDto): Observable<InsuranceProductDto> {
+    return this.api.post<InsuranceProductDto>('/policies/products', dto);
+  }
+
+  updateProduct(id: number, dto: UpdateInsuranceProductDto): Observable<InsuranceProductDto> {
+    return this.api.put<InsuranceProductDto>(`/policies/products/${id}`, dto);
+  }
+
+  deleteProduct(id: number): Observable<void> {
+    return this.api.delete<void>(`/policies/products/${id}`);
   }
 
   calculatePremium(productId: number, coverageAmount: number, termMonths: number): Observable<PremiumCalculationDto> {

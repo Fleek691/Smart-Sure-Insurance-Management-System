@@ -71,6 +71,18 @@ export interface InsuranceProductDto {
   basePremium: number;
 }
 
+export interface CreateInsuranceProductDto {
+  typeName: string;
+  subTypeName: string;
+  basePremium: number;
+}
+
+export interface UpdateInsuranceProductDto {
+  typeName: string;
+  subTypeName: string;
+  basePremium: number;
+}
+
 export interface PremiumCalculationDto {
   productId: number;
   coverageAmount: number;
