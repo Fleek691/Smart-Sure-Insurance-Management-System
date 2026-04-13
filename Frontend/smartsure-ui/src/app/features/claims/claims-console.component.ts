@@ -64,7 +64,7 @@ import { SharedModule } from '../../shared/shared.module';
             <div class="stat-icon policies-icon">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 2H4a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7z"/><path d="M9 2v5h5"/></svg>
             </div>
-            <div><span class="stat-label">Eligible Policies</span><strong class="stat-value">{{ policies.length }}</strong></div>
+            <div><span class="stat-label">Eligible Policies</span><strong class="stat-value">{{ claimablePolicies.length }}</strong></div>
           </div>
           <div class="stat-card action-stat" (click)="go('/claims/new')">
             <div class="stat-icon new-icon">
@@ -119,9 +119,9 @@ import { SharedModule } from '../../shared/shared.module';
           <div class="card-header">
             <h2 class="card-title">Select a policy to file against</h2>
           </div>
-          <div class="policy-select-list" *ngIf="policies.length > 0">
+          <div class="policy-select-list" *ngIf="claimablePolicies.length > 0">
             <button type="button" class="policy-select-row"
-              *ngFor="let policy of policies"
+              *ngFor="let policy of claimablePolicies"
               [class.selected]="createModel.policyId === policy.policyId"
               (click)="createModel.policyId = policy.policyId">
               <div class="policy-select-info">
@@ -135,10 +135,10 @@ import { SharedModule } from '../../shared/shared.module';
               </div>
             </button>
           </div>
-          <div class="empty-state" *ngIf="policies.length === 0">
+          <div class="empty-state" *ngIf="claimablePolicies.length === 0">
             <div class="empty-icon"><svg viewBox="0 0 48 48" fill="none" stroke="#788bff" stroke-width="1.5"><path d="M24 4L10 10v10c0 10 6 16 14 18 8-2 14-8 14-18V10L24 4z" fill="rgba(84,101,255,0.06)"/><path d="M18 24l4 4 8-8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
             <h3>No eligible policies</h3>
-            <p>You need at least one active policy to file a claim. Purchase a policy first.</p>
+            <p>All your active policies already have an open or approved claim, or you have no active policies. Purchase a new policy to file another claim.</p>
           </div>
           <div class="step-actions">
             <div></div>
@@ -225,9 +225,37 @@ import { SharedModule } from '../../shared/shared.module';
 
           <div class="step-actions">
             <button type="button" class="secondary-button" (click)="go('/claims/my-claims')">← Back to Claims</button>
-            <button type="button" class="primary-button" (click)="submitClaim()" [disabled]="loading || selectedClaim.status !== 'DRAFT'">
-              {{ selectedClaim.status === 'DRAFT' ? (loading ? 'Submitting...' : 'Submit for Review') : 'Already Submitted' }}
+            <button type="button" class="primary-button"
+              *ngIf="selectedClaim.status === 'DRAFT'"
+              (click)="submitClaim()" [disabled]="loading">
+              {{ loading ? 'Submitting...' : 'Submit for Review' }}
             </button>
+          </div>
+
+          <!-- Terminal state banner -->
+          <div class="claim-terminal-banner" *ngIf="selectedClaim.status !== 'DRAFT'">
+            <ng-container [ngSwitch]="selectedClaim.status">
+              <span *ngSwitchCase="'SUBMITTED'">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
+                Your claim has been submitted and is awaiting admin review.
+              </span>
+              <span *ngSwitchCase="'UNDER_REVIEW'">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
+                Your claim is currently under review by our team.
+              </span>
+              <span *ngSwitchCase="'APPROVED'">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M5 8l2 2 4-4"/></svg>
+                Your claim has been <strong>approved</strong>.{{ selectedClaim.adminNote ? ' Note: "' + selectedClaim.adminNote + '"' : '' }}
+              </span>
+              <span *ngSwitchCase="'REJECTED'">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M6 6l4 4M10 6l-4 4"/></svg>
+                Your claim has been <strong>rejected</strong>.{{ selectedClaim.adminNote ? ' Reason: "' + selectedClaim.adminNote + '"' : '' }}
+              </span>
+              <span *ngSwitchDefault>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3"/><circle cx="8" cy="11" r="0.5" fill="currentColor"/></svg>
+                This claim is {{ selectedClaim.status | lowercase }} and no further action is required.
+              </span>
+            </ng-container>
           </div>
           <p class="error-msg" *ngIf="errorMessage">{{ errorMessage }}</p>
         </div>
@@ -237,41 +265,55 @@ import { SharedModule } from '../../shared/shared.module';
           <div class="card-header">
             <h2 class="card-title">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V4a2 2 0 00-2-2z"/><path d="M10 10V6"/><path d="M8 8l2-2 2 2"/></svg>
-              Upload Documents
+              {{ selectedClaim.status === 'DRAFT' ? 'Upload Documents' : 'Submitted Documents' }}
             </h2>
             <button type="button" class="ghost-link" (click)="loadDocuments()">↻ Refresh</button>
           </div>
 
-          <div class="upload-zone">
-            <input type="file" id="fileInput" (change)="onFileSelected($event)" class="file-input" />
-            <label for="fileInput" class="file-label">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
-              <span *ngIf="!uploadModel.fileName">Choose a file to upload</span>
-              <span *ngIf="uploadModel.fileName">{{ uploadModel.fileName }} ({{ uploadModel.fileSizeKb }} KB)</span>
-            </label>
-          </div>
-
-          <div class="step-actions" *ngIf="uploadModel.contentBase64">
-            <div></div>
-            <button type="button" class="primary-button" (click)="uploadDocument()" [disabled]="loading">
-              {{ loading ? 'Uploading...' : 'Upload Document' }}
-            </button>
-          </div>
-          <p class="error-msg" *ngIf="errorMessage">{{ errorMessage }}</p>
+          <!-- Upload zone — only for DRAFT claims -->
+          <ng-container *ngIf="selectedClaim.status === 'DRAFT'">
+            <div class="upload-zone">
+              <input type="file" id="fileInput" (change)="onFileSelected($event)" class="file-input" />
+              <label for="fileInput" class="file-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+                <span *ngIf="!uploadModel.fileName">Choose a file to upload</span>
+                <span *ngIf="uploadModel.fileName">{{ uploadModel.fileName }} ({{ uploadModel.fileSizeKb }} KB)</span>
+              </label>
+            </div>
+            <div class="step-actions" *ngIf="uploadModel.contentBase64">
+              <div></div>
+              <button type="button" class="primary-button" (click)="uploadDocument()" [disabled]="loading">
+                {{ loading ? 'Uploading...' : 'Upload Document' }}
+              </button>
+            </div>
+          </ng-container>
 
           <div class="doc-list" *ngIf="documents.length > 0">
             <article class="doc-row" *ngFor="let doc of documents">
               <div class="doc-info">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 2H4a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5z"/><path d="M10 2v3h3"/></svg>
+                <div class="doc-icon">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><path d="M10 2H4a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5z"/><path d="M10 2v3h3"/></svg>
+                </div>
                 <div>
                   <strong>{{ doc.fileName }}</strong>
-                  <span>{{ doc.fileType }} · {{ doc.fileSizeKb }} KB</span>
+                  <span>{{ doc.fileType | uppercase }} · {{ doc.fileSizeKb }} KB · {{ doc.uploadedAt | date:'mediumDate' }}</span>
                 </div>
               </div>
-              <a [href]="doc.fileUrl" target="_blank" rel="noopener" class="doc-link">Open ↗</a>
+              <div class="doc-actions">
+                <a [href]="doc.fileUrl" target="_blank" rel="noopener noreferrer" class="doc-link">Open ↗</a>
+                <!-- Delete only allowed on DRAFT claims -->
+                <button type="button" class="doc-delete"
+                  *ngIf="selectedClaim.status === 'DRAFT'"
+                  (click)="deleteDocument(doc.docId)" [disabled]="loading"
+                  title="Delete document">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M2 4h12"/><path d="M5 4V2h6v2"/><path d="M3 4l1 10h8l1-10"/></svg>
+                </button>
+              </div>
             </article>
           </div>
-          <p class="hint" *ngIf="documents.length === 0" style="text-align:center; padding: 1rem 0;">No documents uploaded yet. Attach supporting evidence to strengthen your claim.</p>
+          <p class="hint" *ngIf="documents.length === 0" style="text-align:center; padding: 1rem 0;">
+            {{ selectedClaim.status === 'DRAFT' ? 'No documents uploaded yet. Attach supporting evidence to strengthen your claim.' : 'No documents were submitted with this claim.' }}
+          </p>
         </div>
 
         <ng-template #noClaim>
@@ -421,16 +463,27 @@ import { SharedModule } from '../../shared/shared.module';
     .doc-list { display: grid; gap: 0.5rem; margin-top: 1rem; }
     .doc-row {
       display: flex; justify-content: space-between; align-items: center; gap: 1rem;
-      padding: 0.85rem 1rem; border-radius: var(--radius-sm, 10px);
+      padding: 0.75rem 1rem; border-radius: var(--radius-sm, 10px);
       border: 1px solid rgba(84, 101, 255, 0.08); background: rgba(255, 255, 255, 0.7);
       transition: all 0.2s ease;
     }
-    .doc-row:hover { border-color: rgba(84, 101, 255, 0.2); transform: translateX(4px); }
-    .doc-info { display: flex; align-items: center; gap: 0.65rem; }
-    .doc-info svg { width: 1.25rem; height: 1.25rem; color: var(--primary-2); flex-shrink: 0; }
-    .doc-info strong { display: block; font-size: 0.88rem; color: var(--ink); }
+    .doc-row:hover { border-color: rgba(84, 101, 255, 0.2); }
+    .doc-info { display: flex; align-items: center; gap: 0.65rem; min-width: 0; }
+    .doc-icon {
+      width: 2rem; height: 2rem; border-radius: 8px; flex-shrink: 0;
+      background: rgba(84,101,255,0.08); display: flex; align-items: center; justify-content: center;
+      color: var(--primary-2);
+    }
+    .doc-info strong { display: block; font-size: 0.88rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px; }
     .doc-info span { display: block; font-size: 0.75rem; color: var(--muted); }
-    .doc-link { color: var(--primary); font-weight: 700; font-size: 0.82rem; text-decoration: none; white-space: nowrap; }
+    .doc-delete {
+      background: none; border: none; cursor: pointer; padding: 0.3rem;
+      color: var(--muted); border-radius: 6px; display: flex; align-items: center;
+      transition: color 0.15s, background 0.15s;
+    }
+    .doc-delete svg { width: 1rem; height: 1rem; }
+    .doc-delete:hover:not(:disabled) { color: #ef4444; background: rgba(239,68,68,0.08); }
+    .doc-delete:disabled { opacity: 0.35; cursor: not-allowed; }
 
     /* ── Step Actions ── */
     .step-actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid rgba(84, 101, 255, 0.06); }
@@ -453,6 +506,17 @@ import { SharedModule } from '../../shared/shared.module';
     .ghost-link { background: transparent; border: 0; color: var(--primary, #5465ff); cursor: pointer; font-weight: 700; font-size: 0.82rem; padding: 0.3rem 0; }
     .hint { color: var(--muted); font-size: 0.85rem; }
     .error-msg { color: #d1495b; font-size: 0.88rem; margin: 0.5rem 0 0; }
+
+    /* ── Claim terminal banner ── */
+    .claim-terminal-banner {
+      display: flex; align-items: flex-start; gap: 0.6rem;
+      padding: 0.9rem 1rem; border-radius: var(--radius-sm, 10px);
+      margin-top: 0.75rem; font-size: 0.9rem; line-height: 1.5;
+      border: 1px solid rgba(84,101,255,0.12);
+      background: rgba(84,101,255,0.04); color: var(--muted);
+    }
+    .claim-terminal-banner svg { width: 1rem; height: 1rem; flex-shrink: 0; margin-top: 2px; }
+    .claim-terminal-banner strong { color: var(--ink); }
 
     /* ── Empty State ── */
     .empty-state { text-align: center; padding: 2.5rem 1.5rem; }
@@ -529,6 +593,21 @@ export class ClaimsConsoleComponent implements OnInit {
 
   getSelectedPolicy(): PolicyDto | undefined {
     return this.policies.find(p => p.policyId === this.createModel.policyId);
+  }
+
+  get activePolicies(): PolicyDto[] {
+    return this.policies.filter(p => p.status === 'ACTIVE');
+  }
+
+  /** Policies that are ACTIVE and don't already have an open or approved claim. */
+  get claimablePolicies(): PolicyDto[] {
+    // Policy IDs that already have a claim in a blocking state
+    const blockedPolicyIds = new Set(
+      this.claims
+        .filter(c => c.status === 'SUBMITTED' || c.status === 'UNDER_REVIEW' || c.status === 'APPROVED')
+        .map(c => c.policyId)
+    );
+    return this.policies.filter(p => p.status === 'ACTIVE' && !blockedPolicyIds.has(p.policyId));
   }
 
   openClaim(claim: ClaimDto): void {
@@ -617,6 +696,16 @@ export class ClaimsConsoleComponent implements OnInit {
       this.uploadModel.contentBase64 = result.includes(',') ? result.split(',')[1] : result;
     };
     reader.readAsDataURL(file);
+  }
+
+  deleteDocument(docId: string): void {
+    if (!this.selectedClaim) return;
+    this.errorMessage = '';
+    this.loading = true;
+    this.claimsService.deleteDocument(this.selectedClaim.claimId, docId).subscribe({
+      next: () => { this.loadDocuments(); this.loading = false; },
+      error: (err) => { this.errorMessage = this.resolveError(err); this.loading = false; }
+    });
   }
 
   private resolveError(error: unknown): string {
