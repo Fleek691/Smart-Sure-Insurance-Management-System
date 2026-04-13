@@ -38,16 +38,6 @@
   margin-bottom: 2.25rem;
 }
 
-.brand-mark {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #5465ff 0%, #788bff 55%, #9bb1ff 100%);
-  box-shadow: 0 6px 20px rgba(84, 101, 255, 0.35);
-  animation: pulse-soft 3s ease-in-out infinite;
-  flex-shrink: 0;
-}
-
 .brand strong,
 .topbar h1 {
   display: block;

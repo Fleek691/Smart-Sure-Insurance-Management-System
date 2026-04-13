@@ -5,10 +5,11 @@ import { StatusLabelPipe } from './pipes/status-label.pipe';
 import { SafeHtmlPipe } from './pipes/safe-html.pipe';
 import { StatusBadgeComponent } from './components/status-badge.component';
 import { StepperComponent } from './components/stepper.component';
+import { LogoComponent } from './components/logo.component';
 
 @NgModule({
   declarations: [StatusBadgeComponent, StepperComponent, FormatCurrencyPipe, StatusLabelPipe, SafeHtmlPipe],
-  imports: [CommonModule],
-  exports: [CommonModule, StatusBadgeComponent, StepperComponent, FormatCurrencyPipe, StatusLabelPipe, SafeHtmlPipe]
+  imports: [CommonModule, LogoComponent],
+  exports: [CommonModule, StatusBadgeComponent, StepperComponent, FormatCurrencyPipe, StatusLabelPipe, SafeHtmlPipe, LogoComponent]
 })
 export class SharedModule {}

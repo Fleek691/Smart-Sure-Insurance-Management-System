@@ -4,23 +4,20 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { AuthStateService } from '../../core/services/auth-state.service';
+import { SharedModule } from '../../shared/shared.module';
+import { LogoComponent } from '../../shared/components/logo.component';
 
 @Component({
   selector: 'app-login-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, SharedModule, LogoComponent],
   template: `
     <div class="login-shell">
 
       <!-- LEFT PANEL — illustration + branding -->
       <div class="left-panel">
         <div class="brand">
-          <div class="brand-icon">
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-              <path d="M14 2L3 7.5V14c0 6.075 4.667 11.75 11 13 6.333-1.25 11-6.925 11-13V7.5L14 2Z" fill="#5465FF"/>
-              <path d="M9 14l3.5 3.5L19 10" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
+          <app-logo [size]="42"></app-logo>
           <span class="brand-name">SmartSure</span>
         </div>
 
@@ -324,13 +321,6 @@ import { AuthStateService } from '../../core/services/auth-state.service';
       gap: 0.75rem;
       position: relative;
       z-index: 1;
-    }
-    .brand-icon {
-      width: 42px; height: 42px;
-      background: #eef2ff;
-      border-radius: 12px;
-      display: flex; align-items: center; justify-content: center;
-      border: 1px solid #c7d2fe;
     }
     .brand-name {
       font-family: 'Space Grotesk', sans-serif;

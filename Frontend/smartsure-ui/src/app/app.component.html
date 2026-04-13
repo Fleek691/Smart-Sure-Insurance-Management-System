@@ -1,7 +1,7 @@
 <div class="shell" [class.shell-auth]="compactShell">
   <aside class="sidebar" *ngIf="!compactShell">
     <div class="brand app-title">
-      <span class="brand-mark"></span>
+      <app-logo [size]="40"></app-logo>
       <div>
         <strong>SmartSure</strong>
         <span>Insurance operations hub</span>
@@ -34,7 +34,7 @@
   <main class="workspace" [class.workspace-auth]="compactShell">
     <header class="topbar" *ngIf="!compactShell">
       <div class="brand app-title">
-        <span class="brand-mark"></span>
+        <app-logo [size]="36"></app-logo>
         <strong>SmartSure</strong>
       </div>
 
