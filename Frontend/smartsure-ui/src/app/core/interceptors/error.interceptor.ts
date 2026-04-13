@@ -1,13 +1,18 @@
 import { HttpErrorResponse, HttpEvent, HttpHandler, HttpInterceptor, HttpRequest } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
-import { catchError, Observable, throwError } from 'rxjs';
+import { BehaviorSubject, catchError, filter, Observable, switchMap, take, throwError } from 'rxjs';
 import { AuthStateService } from '../services/auth-state.service';
+import { AuthService } from '../services/auth.service';
 
 @Injectable()
 export class ErrorInterceptor implements HttpInterceptor {
+  private refreshing = false;
+  private refreshDone$ = new BehaviorSubject<boolean>(false);
+
   constructor(
     private readonly authState: AuthStateService,
+    private readonly authService: AuthService,
     private readonly router: Router
   ) {}
 
@@ -18,57 +23,94 @@ export class ErrorInterceptor implements HttpInterceptor {
           return throwError(() => error);
         }
 
-        switch (error.status) {
-          case 0:
-            // Network error — server unreachable or CORS preflight failed
-            return throwError(() => this.synthetic(error, 'Unable to reach the server. Please check your connection and try again.'));
-
-          case 401:
-            // Only clear session on 401 from authenticated routes
-            // (auth endpoints like /login return 401 for wrong credentials — don't redirect those)
-            if (this.authState.isAuthenticated) {
-              this.authState.clearSession();
-              void this.router.navigateByUrl('/auth/login');
-            }
+        // ── 401 — try token refresh first, then logout ──────────────────
+        if (error.status === 401 && this.authState.isAuthenticated) {
+          // Don't retry the refresh endpoint itself
+          if (request.url.includes('/auth/refresh-token')) {
+            this.logout();
             return throwError(() => error);
+          }
 
-          case 403:
-            return throwError(() => this.synthetic(error, 'You do not have permission to perform this action.'));
+          if (this.refreshing) {
+            // Queue this request until refresh completes
+            return this.refreshDone$.pipe(
+              filter(done => done),
+              take(1),
+              switchMap(() => next.handle(this.addToken(request)))
+            );
+          }
 
-          case 404:
-            return throwError(() => error); // let the component handle with its own message
-
-          case 409:
-            return throwError(() => error); // conflict — component shows the detail
-
-          case 422:
-            return throwError(() => error); // business rule — component shows the detail
-
-          case 429:
-            return throwError(() => this.synthetic(error, 'Too many requests. Please wait a moment and try again.'));
-
-          case 500:
-            return throwError(() => this.synthetic(error, 'An unexpected server error occurred. Please try again later.'));
-
-          case 502:
-          case 503:
-          case 504:
-            return throwError(() => this.synthetic(error, 'The service is temporarily unavailable. Please try again in a few moments.'));
-
-          default:
-            return throwError(() => error);
+          return this.doRefresh(request, next, error);
         }
+
+        // ── Other status codes ──────────────────────────────────────────
+        return throwError(() => this.enrich(error));
       })
     );
   }
 
-  /** Wraps a synthetic detail message into the same problem+json shape the backend uses. */
-  private synthetic(original: HttpErrorResponse, detail: string): HttpErrorResponse {
+  private doRefresh(
+    request: HttpRequest<unknown>,
+    next: HttpHandler,
+    originalError: HttpErrorResponse
+  ): Observable<HttpEvent<unknown>> {
+    this.refreshing = true;
+    this.refreshDone$.next(false);
+
+    const refreshToken = this.authState.refreshToken;
+    if (!refreshToken) {
+      this.logout();
+      return throwError(() => originalError);
+    }
+
+    return this.authService.refreshToken(refreshToken).pipe(
+      switchMap(session => {
+        this.authState.setSession(session);
+        this.refreshing = false;
+        this.refreshDone$.next(true);
+        return next.handle(this.addToken(request));
+      }),
+      catchError(err => {
+        this.refreshing = false;
+        this.refreshDone$.next(true);
+        this.logout();
+        return throwError(() => err);
+      })
+    );
+  }
+
+  private addToken(request: HttpRequest<unknown>): HttpRequest<unknown> {
+    const token = this.authState.token;
+    return token
+      ? request.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
+      : request;
+  }
+
+  private logout(): void {
+    this.authState.clearSession();
+    void this.router.navigateByUrl('/auth/login');
+  }
+
+  /** Attach a human-readable detail to well-known HTTP errors. */
+  private enrich(error: HttpErrorResponse): HttpErrorResponse {
+    const knownMessages: Record<number, string> = {
+      0:   'Unable to reach the server. Please check your connection.',
+      403: 'You do not have permission to perform this action.',
+      429: 'Too many requests. Please wait a moment and try again.',
+      500: 'An unexpected server error occurred. Please try again later.',
+      502: 'The service is temporarily unavailable. Please try again in a few moments.',
+      503: 'The service is temporarily unavailable. Please try again in a few moments.',
+      504: 'The service is temporarily unavailable. Please try again in a few moments.',
+    };
+
+    const msg = knownMessages[error.status];
+    if (!msg) return error;
+
     return new HttpErrorResponse({
-      error: { detail, title: detail, status: original.status },
-      status: original.status,
-      statusText: original.statusText,
-      url: original.url ?? undefined
+      error: { detail: msg, title: msg, status: error.status },
+      status: error.status,
+      statusText: error.statusText,
+      url: error.url ?? undefined
     });
   }
 }

@@ -46,6 +46,10 @@ export class AuthService {
     return this.api.text('/auth/google');
   }
 
+  refreshToken(token: string): Observable<AuthResponseDto> {
+    return this.api.post<AuthResponseDto>('/auth/refresh-token', { token });
+  }
+
   getProfile(): Observable<ProfileDto> {
     return this.api.get<ProfileDto>('/users/profile');
   }
