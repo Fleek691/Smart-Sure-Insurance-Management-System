@@ -66,11 +66,11 @@ public static class DbSeeder
             context.UserRoles.Add(userRole);
             await context.SaveChangesAsync();
 
-            logger.LogInformation("✅ Seeded admin user: admin@smartsure.com / {Password}", adminPassword);
+            logger.LogInformation("Seeded admin user: admin@smartsure.com / {Password}", adminPassword);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "❌ Error seeding admin user");
+            logger.LogError(ex, "Error seeding admin user");
         }
     }
 }
