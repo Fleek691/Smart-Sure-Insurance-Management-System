@@ -5,6 +5,9 @@ using SmartSure.Shared.Exceptions;
 
 namespace SmartSure.Shared.Middleware;
 
+/// <summary>
+/// Catches domain exceptions and maps them to RFC 7807 problem+json responses.
+/// </summary>
 public class GlobalExceptionHandlerMiddleware
 {
     private readonly RequestDelegate _next;

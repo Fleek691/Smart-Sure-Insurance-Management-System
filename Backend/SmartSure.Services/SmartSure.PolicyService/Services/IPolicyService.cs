@@ -2,6 +2,9 @@ using SmartSure.PolicyService.DTOs;
 
 namespace SmartSure.PolicyService.Services;
 
+/// <summary>
+/// Defines policy lifecycle operations: product catalog, premium calculation, purchase, and cancellation.
+/// </summary>
 public interface IPolicyService
 {
     Task<List<InsuranceProductDto>> GetProductsAsync();

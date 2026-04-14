@@ -1,5 +1,8 @@
 namespace SmartSure.Shared.Messaging;
 
+/// <summary>
+/// Configuration options for the RabbitMQ connection used by MassTransit.
+/// </summary>
 public class RabbitMqOptions
 {
     public string HostName { get; set; } = "localhost";

@@ -2,6 +2,9 @@ using SmartSure.IdentityService.DTOs;
 
 namespace SmartSure.IdentityService.Services;
 
+/// <summary>
+/// Defines authentication operations: registration, login, token refresh, and password recovery.
+/// </summary>
 public interface IAuthService
 {
     Task<OtpDispatchResponseDto> RegisterAsync(RegisterDto dto);

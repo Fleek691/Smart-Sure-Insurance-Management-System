@@ -2,6 +2,9 @@ using SmartSure.AdminService.DTOs;
 
 namespace SmartSure.AdminService.Services;
 
+/// <summary>
+/// Defines admin dashboard operations: statistics, report generation, and audit log queries.
+/// </summary>
 public interface IAdminService
 {
     Task<DashboardStatsDto> GetDashboardStatsAsync();

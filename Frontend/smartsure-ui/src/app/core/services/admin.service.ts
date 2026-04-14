@@ -10,6 +10,7 @@ import {
 } from '../../models/api-models';
 import { ApiService } from './api.service';
 
+/** Wraps admin dashboard, reports, and audit log API calls via the gateway. */
 @Injectable({ providedIn: 'root' })
 export class AdminService {
   constructor(private readonly api: ApiService) {}

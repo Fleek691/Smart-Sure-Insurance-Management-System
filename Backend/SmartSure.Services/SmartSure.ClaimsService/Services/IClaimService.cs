@@ -2,6 +2,9 @@ using SmartSure.ClaimsService.DTOs;
 
 namespace SmartSure.ClaimsService.Services;
 
+/// <summary>
+/// Defines customer-facing claim operations: creation, submission, and document management.
+/// </summary>
 public interface IClaimService
 {
     Task<ClaimDto> CreateClaimAsync(Guid userId, CreateClaimDto dto, string bearerToken = "");

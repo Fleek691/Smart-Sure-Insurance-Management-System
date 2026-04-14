@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { AuthResponseDto } from '../../models/api-models';
 
+/** Manages the authenticated session: stores/restores JWT tokens in localStorage. */
 @Injectable({ providedIn: 'root' })
 export class AuthStateService {
   private readonly storageKey = 'smartsure.auth.session';

@@ -9,13 +9,26 @@ using Ocelot.Middleware;
 using Ocelot.Provider.Polly;
 using System.Text;
 
-// Load .env file for environment variables
-DotNetEnv.Env.Load();
+// Load .env — walk up from the executable directory to find the .env in the project root
+{
+    var envPath = Path.Combine(AppContext.BaseDirectory, ".env");
+    if (!File.Exists(envPath))
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, ".env")))
+            dir = dir.Parent;
+        if (dir != null)
+            envPath = Path.Combine(dir.FullName, ".env");
+    }
+    if (File.Exists(envPath))
+        DotNetEnv.Env.Load(envPath);
+}
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration
     .SetBasePath(builder.Environment.ContentRootPath)
     .AddJsonFile("ocelot.json", optional: false, reloadOnChange: true)
+    .AddJsonFile($"ocelot.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
     .AddEnvironmentVariables();
 
 builder.AddSerilogLogging("Gateway");

@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { AuthStateService } from '../services/auth-state.service';
 import { environment } from '../../../environments/environment';
 
+/** Attaches the JWT Bearer token and X-Client-Id header to outgoing gateway requests. */
 @Injectable()
 export class JwtInterceptor implements HttpInterceptor {
   constructor(private readonly authState: AuthStateService) {}

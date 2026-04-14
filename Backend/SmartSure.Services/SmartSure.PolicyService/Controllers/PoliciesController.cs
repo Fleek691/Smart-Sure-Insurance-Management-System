@@ -8,6 +8,9 @@ using SmartSure.Shared.Exceptions;
 
 namespace SmartSure.PolicyService.Controllers;
 
+/// <summary>
+/// Manages insurance products, policy purchases, Razorpay payments, and admin policy operations.
+/// </summary>
 [ApiController]
 [Route("api/policies")]
 public class PoliciesController(IPolicyService policyService, IRazorpayService razorpayService) : ControllerBase

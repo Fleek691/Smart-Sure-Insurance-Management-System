@@ -9,6 +9,9 @@ using SmartSure.Shared.Exceptions;
 
 namespace SmartSure.AdminService.Controllers;
 
+/// <summary>
+/// Admin-only endpoints: dashboard stats, audit logs, and report generation/export.
+/// </summary>
 [ApiController]
 [Route("api/admin")]
 [Authorize(Roles = Roles.Admin)]

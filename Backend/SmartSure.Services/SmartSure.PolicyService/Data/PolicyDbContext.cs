@@ -3,6 +3,9 @@ using SmartSure.PolicyService.Models;
 
 namespace SmartSure.PolicyService.Data;
 
+/// <summary>
+/// EF Core DbContext for the Policy service (insurance types, policies, payments).
+/// </summary>
 public class PolicyDbContext(DbContextOptions<PolicyDbContext> options) : DbContext(options)
 {
     public DbSet<InsuranceType> InsuranceTypes => Set<InsuranceType>();

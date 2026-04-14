@@ -8,6 +8,9 @@ using SmartSure.Shared.Exceptions;
 
 namespace SmartSure.ClaimsService.Controllers;
 
+/// <summary>
+/// Manages insurance claims: creation, submission, document uploads, and admin review workflow.
+/// </summary>
 [ApiController]
 [Route("api/claims")]
 [Authorize]

@@ -5,12 +5,12 @@ using Serilog;
 namespace SmartSure.Shared.Contracts.Extensions;
 
 /// <summary>
-/// Represent or implements SerilogExtensions.
+/// Extension methods for configuring Serilog structured logging per service.
 /// </summary>
 public static class SerilogExtensions
 {
     /// <summary>
-    /// Performs the AddSerilogLogging operation.
+    /// Registers Serilog with console and rolling-file sinks, tagged with the service name.
     /// </summary>
     public static WebApplicationBuilder AddSerilogLogging(this WebApplicationBuilder builder, string serviceName)
     {

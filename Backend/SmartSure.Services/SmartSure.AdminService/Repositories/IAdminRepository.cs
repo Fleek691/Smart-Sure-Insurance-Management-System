@@ -2,6 +2,7 @@ using SmartSure.AdminService.Models;
 
 namespace SmartSure.AdminService.Repositories;
 
+/// <summary>Persistence operations for audit logs and reports.</summary>
 public interface IAdminRepository
 {
     Task<int> CountDistinctEntitiesAsync(string entityType, DateTime? fromUtc, DateTime? toUtc);

@@ -2,6 +2,7 @@ using SmartSure.IdentityService.Models;
 
 namespace SmartSure.IdentityService.Repositories;
 
+/// <summary>Persistence operations for the User aggregate.</summary>
 public interface IUserRepository
 {
     Task<User?> GetByEmailAsync(string email);

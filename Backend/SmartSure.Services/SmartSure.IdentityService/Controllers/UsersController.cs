@@ -5,6 +5,9 @@ using SmartSure.IdentityService.Services;
 
 namespace SmartSure.IdentityService.Controllers;
 
+/// <summary>
+/// Manages user profiles and admin-level user operations (status, role changes).
+/// </summary>
 [ApiController]
 [Route("api/users")]
 [Authorize]

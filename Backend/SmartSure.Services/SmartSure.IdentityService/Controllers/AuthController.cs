@@ -5,6 +5,9 @@ using SmartSure.IdentityService.Services;
 
 namespace SmartSure.IdentityService.Controllers;
 
+/// <summary>
+/// Handles user authentication: registration, login, OAuth, token refresh, and password recovery.
+/// </summary>
 [ApiController]
 [Route("api/auth")]
 public class AuthController : ControllerBase

@@ -12,8 +12,20 @@ using SmartSure.AdminService.Services;
 using SmartSure.Shared.Messaging;
 using System.Text;
 
-// Load .env file for environment variables
-DotNetEnv.Env.Load();
+// Load .env — walk up from the executable directory to find the .env in the project root
+{
+    var envPath = Path.Combine(AppContext.BaseDirectory, ".env");
+    if (!File.Exists(envPath))
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, ".env")))
+            dir = dir.Parent;
+        if (dir != null)
+            envPath = Path.Combine(dir.FullName, ".env");
+    }
+    if (File.Exists(envPath))
+        DotNetEnv.Env.Load(envPath);
+}
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddSerilogLogging("AdminService");

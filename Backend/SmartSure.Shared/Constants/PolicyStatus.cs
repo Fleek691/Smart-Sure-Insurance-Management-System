@@ -1,5 +1,8 @@
 namespace SmartSure.Shared.Constants;
 
+/// <summary>
+/// Defines the valid lifecycle states for insurance policies.
+/// </summary>
 public static class PolicyStatus
 {
     public const string Draft = "DRAFT";

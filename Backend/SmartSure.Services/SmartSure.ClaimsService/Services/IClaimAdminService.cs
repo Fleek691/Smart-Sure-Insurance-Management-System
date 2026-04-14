@@ -2,6 +2,9 @@ using SmartSure.ClaimsService.DTOs;
 
 namespace SmartSure.ClaimsService.Services;
 
+/// <summary>
+/// Defines admin claim review operations: listing, approval, and rejection.
+/// </summary>
 public interface IClaimAdminService
 {
     Task<List<ClaimDto>> GetAllClaimsForAdminAsync();

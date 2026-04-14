@@ -14,6 +14,7 @@ import {
 } from '../../models/api-models';
 import { ApiService } from './api.service';
 
+/** Wraps authentication and user profile API calls via the gateway. */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   constructor(private readonly api: ApiService) {}

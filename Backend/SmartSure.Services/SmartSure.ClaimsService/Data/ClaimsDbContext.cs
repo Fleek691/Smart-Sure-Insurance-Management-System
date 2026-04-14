@@ -3,6 +3,9 @@ using SmartSure.ClaimsService.Models;
 
 namespace SmartSure.ClaimsService.Data;
 
+/// <summary>
+/// EF Core DbContext for the Claims service (claims, documents, status history).
+/// </summary>
 public class ClaimsDbContext(DbContextOptions<ClaimsDbContext> options) : DbContext(options)
 {
     public DbSet<Claim> Claims => Set<Claim>();

@@ -11,6 +11,7 @@ import {
 } from '../../models/api-models';
 import { ApiService } from './api.service';
 
+/** Wraps insurance claim and document management API calls via the gateway. */
 @Injectable({ providedIn: 'root' })
 export class ClaimsService {
   constructor(private readonly api: ApiService) {}

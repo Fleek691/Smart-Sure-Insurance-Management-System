@@ -2,6 +2,7 @@ using SmartSure.PolicyService.Models;
 
 namespace SmartSure.PolicyService.Repositories;
 
+/// <summary>Persistence operations for policies and insurance products.</summary>
 public interface IPolicyRepository
 {
     Task<List<InsuranceSubType>> GetProductsAsync();

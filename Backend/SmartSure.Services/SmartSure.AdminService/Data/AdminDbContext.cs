@@ -3,6 +3,9 @@ using SmartSure.AdminService.Models;
 
 namespace SmartSure.AdminService.Data;
 
+/// <summary>
+/// EF Core DbContext for the Admin service (audit logs, reports).
+/// </summary>
 public class AdminDbContext(DbContextOptions<AdminDbContext> options) : DbContext(options)
 {
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();

@@ -2,6 +2,7 @@ import { inject } from '@angular/core';
 import { ActivatedRouteSnapshot, CanActivateFn, Router } from '@angular/router';
 import { AuthStateService } from '../services/auth-state.service';
 
+/** Checks that the authenticated user has at least one of the required roles from route data. */
 export const roleGuard: CanActivateFn = (route: ActivatedRouteSnapshot) => {
   const authState = inject(AuthStateService);
   const router = inject(Router);

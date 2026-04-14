@@ -5,7 +5,7 @@ using SmartSure.Shared.Constants;
 namespace SmartSure.IdentityService.Data;
 
 /// <summary>
-/// Represent or implements IdentityDbContext.
+/// EF Core DbContext for the Identity service (users, passwords, roles).
 /// </summary>
 public class IdentityDbContext : DbContext
 {
@@ -18,7 +18,7 @@ public class IdentityDbContext : DbContext
     public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
 
     /// <summary>
-    /// Performs the OnModelCreating operation.
+    /// Configures entity relationships, indexes, and seeds default roles.
     /// </summary>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -2,6 +2,7 @@ using SmartSure.ClaimsService.Models;
 
 namespace SmartSure.ClaimsService.Repositories;
 
+/// <summary>Persistence operations for claims and claim documents.</summary>
 public interface IClaimRepository
 {
     Task<Claim?> GetByIdAsync(Guid claimId);

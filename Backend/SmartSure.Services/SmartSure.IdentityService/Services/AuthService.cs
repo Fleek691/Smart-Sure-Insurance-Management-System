@@ -9,6 +9,9 @@ using SmartSure.Shared.Exceptions;
 
 namespace SmartSure.IdentityService.Services;
 
+/// <summary>
+/// Core authentication logic: OTP-based registration, login, token refresh, and password reset.
+/// </summary>
 public class AuthService : IAuthService
 {
     private const int RegistrationOtpMinutes = 10;
