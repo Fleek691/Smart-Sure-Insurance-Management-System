@@ -16,6 +16,7 @@ import { ApiService } from './api.service';
 export class ClaimsService {
   constructor(private readonly api: ApiService) {}
 
+  /** Creates a new claim in DRAFT status. */
   createClaim(dto: CreateClaimDto): Observable<ClaimDto> {
     return this.api.post<ClaimDto>('/claims', dto);
   }
@@ -28,10 +29,12 @@ export class ClaimsService {
     return this.api.get<ClaimDto>(`/claims/${id}`);
   }
 
+  /** Transitions a DRAFT claim to SUBMITTED. */
   submitClaim(id: string): Observable<ClaimDto> {
     return this.api.post<ClaimDto>(`/claims/${id}/submit`);
   }
 
+  /** Uploads a base64-encoded document to a DRAFT claim. */
   uploadDocument(id: string, dto: UploadClaimDocumentDto): Observable<ClaimDocumentDto> {
     return this.api.post<ClaimDocumentDto>(`/claims/${id}/documents`, dto);
   }

@@ -19,14 +19,17 @@ import { ApiService } from './api.service';
 export class AuthService {
   constructor(private readonly api: ApiService) {}
 
+  /** Authenticates with email/password and returns JWT session. */
   login(dto: LoginDto): Observable<AuthResponseDto> {
     return this.api.post<AuthResponseDto>('/auth/login', dto);
   }
 
+  /** Sends a registration OTP to the user's email. */
   register(dto: RegisterDto): Observable<OtpDispatchResponseDto> {
     return this.api.post<OtpDispatchResponseDto>('/auth/register', dto);
   }
 
+  /** Completes registration by verifying the OTP. */
   verifyRegistrationOtp(dto: VerifyRegistrationOtpDto): Observable<AuthResponseDto> {
     return this.api.post<AuthResponseDto>('/auth/register/verify-otp', dto);
   }
@@ -35,6 +38,7 @@ export class AuthService {
     return this.api.post<OtpDispatchResponseDto>('/auth/register/resend-otp', dto);
   }
 
+  /** Sends a password reset OTP to the given email. */
   requestPasswordReset(dto: ForgotPasswordDto): Observable<void> {
     return this.api.post<void>('/auth/forgot-password', dto);
   }
@@ -47,6 +51,7 @@ export class AuthService {
     return this.api.text('/auth/google');
   }
 
+  /** Issues a new JWT using the current refresh token. */
   refreshToken(token: string): Observable<AuthResponseDto> {
     return this.api.post<AuthResponseDto>('/auth/refresh-token', { token });
   }
