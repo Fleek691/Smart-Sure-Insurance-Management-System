@@ -41,6 +41,10 @@ public class AuthService : IAuthService
         _eventPublisher = eventPublisher;
     }
 
+    /// <summary>
+    /// Validates input, checks for duplicate email, generates a 6-digit OTP,
+    /// caches the pending registration, and sends the OTP via email.
+    /// </summary>
     public async Task<OtpDispatchResponseDto> RegisterAsync(RegisterDto dto)
     {
         // ── Input validation (defense-in-depth) ──
@@ -94,6 +98,10 @@ public class AuthService : IAuthService
         };
     }
 
+    /// <summary>
+    /// Verifies the OTP against the cached value, creates the user with a hashed password,
+    /// assigns the CUSTOMER role, issues JWT + refresh token, and publishes a UserRegisteredEvent.
+    /// </summary>
     public async Task<AuthResponseDto> VerifyRegistrationOtpAsync(VerifyRegistrationOtpDto dto)
     {
         var email = NormalizeEmail(dto.Email);
@@ -175,6 +183,9 @@ public class AuthService : IAuthService
         return response;
     }
 
+    /// <summary>
+    /// Generates a new OTP for an existing pending registration and re-sends it via email.
+    /// </summary>
     public async Task<OtpDispatchResponseDto> ResendRegistrationOtpAsync(ResendRegistrationOtpDto dto)
     {
         var email = NormalizeEmail(dto.Email);
@@ -196,6 +207,10 @@ public class AuthService : IAuthService
         };
     }
 
+    /// <summary>
+    /// Authenticates the user by verifying email/password (BCrypt), then issues a new JWT
+    /// and rotates the refresh token.
+    /// </summary>
     public async Task<AuthResponseDto> LoginAsync(LoginDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.Email) || !IsValidEmail(dto.Email))
@@ -241,6 +256,10 @@ public class AuthService : IAuthService
         return CreateAuthResponse(user, roles, token, refreshToken);
     }
 
+    /// <summary>
+    /// Validates the refresh token, issues a new JWT, and rotates the refresh token
+    /// (old token becomes invalid).
+    /// </summary>
     public async Task<AuthResponseDto> RefreshTokenAsync(RefreshTokenDto dto)
     {
         var user = await _userRepository.GetByRefreshTokenAsync(dto.Token)
@@ -264,6 +283,10 @@ public class AuthService : IAuthService
         return CreateAuthResponse(user, roles, token, refreshToken);
     }
 
+    /// <summary>
+    /// Generates a password reset OTP and emails it. Intentionally silent on unknown
+    /// emails to prevent user enumeration.
+    /// </summary>
     public async Task RequestPasswordResetAsync(ForgotPasswordDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.Email) || !IsValidEmail(dto.Email))
@@ -287,6 +310,9 @@ public class AuthService : IAuthService
         await _emailService.SendAsync(user.Email, "Your SmartSure password reset OTP", $"Your 6-digit OTP is: {resetToken}. It expires in 15 minutes.");
     }
 
+    /// <summary>
+    /// Validates the reset OTP, marks it as used, and updates the user's password hash.
+    /// </summary>
     public async Task ResetPasswordAsync(ResetPasswordDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.Email) || !IsValidEmail(dto.Email))
@@ -337,6 +363,7 @@ public class AuthService : IAuthService
         await _userRepository.SaveChangesAsync();
     }
 
+    /// <summary>Maps a User entity to the auth response DTO with token details.</summary>
     private static AuthResponseDto CreateAuthResponse(User user, IReadOnlyCollection<string> roles, string token, string refreshToken)
     {
         return new AuthResponseDto
@@ -351,6 +378,7 @@ public class AuthService : IAuthService
         };
     }
 
+    /// <summary>Extracts role names from the user, using a 10-minute memory cache.</summary>
     private string[] GetRoleNames(User user)
     {
         if (_memoryCache.TryGetValue(GetUserRoleCacheKey(user.UserId), out string[]? cachedRoles) && cachedRoles is not null)
@@ -386,6 +414,7 @@ public class AuthService : IAuthService
         return $"user_role_{userId}";
     }
 
+    /// <summary>Reads Jwt:Aud1–Aud5 from configuration to build the multi-audience list.</summary>
     private string[] GetJwtAudiences()
     {
         var audiences = new List<string>();
@@ -483,6 +512,7 @@ public class AuthService : IAuthService
         return $"registration_pending_{email}";
     }
 
+    /// <summary>Temporary record stored in IMemoryCache during the OTP verification window.</summary>
     private sealed class PendingRegistration
     {
         public string FullName { get; set; } = string.Empty;

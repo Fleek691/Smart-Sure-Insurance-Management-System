@@ -3,6 +3,10 @@ using SmartSure.Shared.Events;
 
 namespace SmartSure.IdentityService.Consumers;
 
+/// <summary>
+/// Listens for <see cref="PolicyCancelledEvent"/> messages from the PolicyService.
+/// Currently logs the event. Extend to send cancellation notifications or update user state.
+/// </summary>
 public class PolicyCancelledConsumer(ILogger<PolicyCancelledConsumer> logger) : IConsumer<PolicyCancelledEvent>
 {
     private readonly ILogger<PolicyCancelledConsumer> _logger = logger;

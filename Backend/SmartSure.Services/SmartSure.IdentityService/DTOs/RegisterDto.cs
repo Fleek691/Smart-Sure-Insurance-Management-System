@@ -2,6 +2,10 @@ using System.ComponentModel.DataAnnotations;
 
 namespace SmartSure.IdentityService.DTOs;
 
+/// <summary>
+/// Request body for the initial registration step.
+/// On success, a 6-digit OTP is sent to the provided email.
+/// </summary>
 public class RegisterDto
 {
     [Required(ErrorMessage = "Full name is required.")]

@@ -8,6 +8,9 @@ using SmartSure.Shared.Exceptions;
 
 namespace SmartSure.ClaimsService.Services;
 
+/// <summary>
+/// Customer-facing claim operations: creation, submission, document uploads, and retrieval.
+/// </summary>
 public class ClaimService : IClaimService
 {
     private readonly IClaimRepository _claimRepository;
@@ -30,6 +33,10 @@ public class ClaimService : IClaimService
         _policyVerification = policyVerification;
     }
 
+    /// <summary>
+    /// Creates a new claim in DRAFT status after verifying the policy is ACTIVE
+    /// via an HTTP call to the PolicyService.
+    /// </summary>
     public async Task<ClaimDto> CreateClaimAsync(Guid userId, CreateClaimDto dto, string bearerToken = "")
     {
         if (dto.PolicyId == Guid.Empty)
@@ -95,6 +102,7 @@ public class ClaimService : IClaimService
         return MapClaim(claim);
     }
 
+    /// <summary>Returns all claims for a customer, cached for 2 minutes.</summary>
     public async Task<List<ClaimDto>> GetMyClaimsAsync(Guid userId)
     {
         var cacheKey = GetUserClaimsCacheKey(userId);
@@ -109,6 +117,7 @@ public class ClaimService : IClaimService
         return result;
     }
 
+    /// <summary>Retrieves a single claim; enforces ownership unless the caller is admin.</summary>
     public async Task<ClaimDto> GetClaimAsync(Guid claimId, Guid userId, bool isAdmin)
     {
         var cacheKey = GetClaimCacheKey(claimId);
@@ -131,6 +140,10 @@ public class ClaimService : IClaimService
         return result;
     }
 
+    /// <summary>
+    /// Transitions a DRAFT claim to SUBMITTED, requires at least one document,
+    /// records status history, and publishes ClaimSubmitted + StatusChanged events.
+    /// </summary>
     public async Task<ClaimDto> SubmitClaimAsync(Guid claimId, Guid userId)
     {
         var claim = await _claimRepository.GetByIdAsync(claimId)
@@ -192,6 +205,10 @@ public class ClaimService : IClaimService
         return MapClaim(claim);
     }
 
+    /// <summary>
+    /// Uploads a document (base64-encoded) to Mega.nz cloud storage with local fallback,
+    /// then links the document record to the claim.
+    /// </summary>
     public async Task<ClaimDocumentDto> UploadDocumentAsync(Guid claimId, Guid userId, UploadClaimDocumentDto dto)
     {
         var claim = await _claimRepository.GetByIdAsync(claimId)
@@ -251,6 +268,7 @@ public class ClaimService : IClaimService
         return MapDocument(doc);
     }
 
+    /// <summary>Returns all documents for a claim; enforces ownership unless admin.</summary>
     public async Task<List<ClaimDocumentDto>> GetDocumentsAsync(Guid claimId, Guid userId, bool isAdmin)
     {
         var claim = await _claimRepository.GetByIdAsync(claimId)
@@ -265,6 +283,7 @@ public class ClaimService : IClaimService
         return documents.Select(MapDocument).ToList();
     }
 
+    /// <summary>Deletes a document from a DRAFT claim; only the claim owner can delete.</summary>
     public async Task DeleteDocumentAsync(Guid claimId, Guid docId, Guid userId)
     {
         var claim = await _claimRepository.GetByIdAsync(claimId)
@@ -340,6 +359,7 @@ public class ClaimService : IClaimService
         };
     }
 
+    /// <summary>Strips optional data-URI prefix and decodes base64 content to bytes.</summary>
     private static byte[] ParseBase64(string input)
     {
         var value = input.Trim();

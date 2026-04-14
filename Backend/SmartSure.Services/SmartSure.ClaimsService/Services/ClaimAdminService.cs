@@ -8,6 +8,9 @@ using SmartSure.Shared.Exceptions;
 
 namespace SmartSure.ClaimsService.Services;
 
+/// <summary>
+/// Admin-only claim operations: review, approve, and reject with enforced state transitions.
+/// </summary>
 public class ClaimAdminService(
     IClaimRepository claimRepository,
     IClaimEventPublisher eventPublisher,
@@ -17,17 +20,20 @@ public class ClaimAdminService(
     private readonly IClaimEventPublisher _eventPublisher = eventPublisher;
     private readonly IMemoryCache _memoryCache = memoryCache;
 
+    /// <summary>Returns all claims across all customers for admin review.</summary>
     public async Task<List<ClaimDto>> GetAllClaimsForAdminAsync()
     {
         var claims = await _claimRepository.GetAllAsync();
         return claims.Select(MapClaim).ToList();
     }
 
+    /// <summary>Transitions a SUBMITTED claim to UNDER_REVIEW status.</summary>
     public async Task<ClaimDto> MarkUnderReviewAsync(Guid claimId, Guid adminUserId, string? note)
     {
         return await UpdateClaimStatusByAdminAsync(claimId, adminUserId, ClaimStatus.UnderReview, note);
     }
 
+    /// <summary>Approves a claim under review and publishes a ClaimApprovedEvent.</summary>
     public async Task<ClaimDto> ApproveClaimAsync(Guid claimId, Guid adminUserId, decimal? approvedAmount, string? note)
     {
         var claim = await UpdateClaimStatusByAdminAsync(claimId, adminUserId, ClaimStatus.Approved, note);
@@ -44,6 +50,7 @@ public class ClaimAdminService(
         return claim;
     }
 
+    /// <summary>Rejects a claim under review (reason required) and publishes a ClaimRejectedEvent.</summary>
     public async Task<ClaimDto> RejectClaimAsync(Guid claimId, Guid adminUserId, string reason)
     {
         if (string.IsNullOrWhiteSpace(reason))
@@ -64,6 +71,10 @@ public class ClaimAdminService(
         return claim;
     }
 
+    /// <summary>
+    /// Core state machine: validates allowed transitions (Submitted→UnderReview,
+    /// UnderReview→Approved/Rejected), records history, and publishes status change event.
+    /// </summary>
     private async Task<ClaimDto> UpdateClaimStatusByAdminAsync(Guid claimId, Guid adminUserId, string newStatus, string? note)
     {
         var claim = await _claimRepository.GetByIdAsync(claimId)

@@ -5,6 +5,12 @@ using SmartSure.Shared.Events;
 
 namespace SmartSure.AdminService.Consumers;
 
+/// <summary>
+/// Subscribes to all domain events across services and persists them as audit log entries.
+/// This is the single source of truth for the admin audit trail and reporting data.
+/// Handles: UserRegistered, PolicyActivated, PolicyCancelled, ClaimSubmitted,
+/// ClaimStatusChanged, ClaimApproved, ClaimRejected.
+/// </summary>
 public class AuditEventConsumer(
     AdminDbContext dbContext,
     ILogger<AuditEventConsumer> logger) :
@@ -103,6 +109,11 @@ public class AuditEventConsumer(
             cancellationToken: context.CancellationToken);
     }
 
+    /// <summary>
+    /// Persists a domain event as an audit log entry.
+    /// The event payload is serialized to JSON and stored in the Details column.
+    /// Falls back to DateTime.UtcNow if the event timestamp is the default value.
+    /// </summary>
     private async Task SaveAuditLogAsync<T>(
         string action,
         string entityType,

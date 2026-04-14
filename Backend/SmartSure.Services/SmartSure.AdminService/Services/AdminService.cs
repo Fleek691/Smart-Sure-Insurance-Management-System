@@ -9,6 +9,9 @@ using SmartSure.Shared.Exceptions;
 
 namespace SmartSure.AdminService.Services;
 
+/// <summary>
+/// Admin dashboard, reporting (policy/claims/revenue), audit logs, and PDF export.
+/// </summary>
 public class AdminService(IAdminRepository adminRepository, IMemoryCache memoryCache) : IAdminService
 {
     private const string DashboardStatsCacheKey = "admin_dashboard_stats";
@@ -16,6 +19,7 @@ public class AdminService(IAdminRepository adminRepository, IMemoryCache memoryC
     private readonly IAdminRepository _adminRepository = adminRepository;
     private readonly IMemoryCache _memoryCache = memoryCache;
 
+    /// <summary>Aggregates dashboard KPIs from audit logs, cached for 2 minutes.</summary>
     public async Task<DashboardStatsDto> GetDashboardStatsAsync()
     {
         if (_memoryCache.TryGetValue(DashboardStatsCacheKey, out DashboardStatsDto? cachedStats) && cachedStats is not null)
@@ -37,6 +41,7 @@ public class AdminService(IAdminRepository adminRepository, IMemoryCache memoryC
         return stats;
     }
 
+    /// <summary>Generates a policy report grouped by action, and persists it for later export.</summary>
     public async Task<PolicyReportDto> GetPolicyReportAsync(Guid adminUserId, DateOnly? from, DateOnly? to, string? typeFilter)
     {
         var (fromUtc, toUtc) = BuildUtcRange(from, to);
@@ -67,6 +72,7 @@ public class AdminService(IAdminRepository adminRepository, IMemoryCache memoryC
         return dto;
     }
 
+    /// <summary>Generates a claims report grouped by status, and persists it for later export.</summary>
     public async Task<ClaimsReportDto> GetClaimsReportAsync(Guid adminUserId, DateOnly? from, DateOnly? to, string? statusFilter)
     {
         var (fromUtc, toUtc) = BuildUtcRange(from, to);
@@ -97,6 +103,7 @@ public class AdminService(IAdminRepository adminRepository, IMemoryCache memoryC
         return dto;
     }
 
+    /// <summary>Generates a revenue report with daily data points, and persists it for later export.</summary>
     public async Task<RevenueReportDto> GetRevenueReportAsync(Guid adminUserId, DateOnly? from, DateOnly? to)
     {
         var (fromUtc, toUtc) = BuildUtcRange(from, to);
@@ -125,6 +132,7 @@ public class AdminService(IAdminRepository adminRepository, IMemoryCache memoryC
         return dto;
     }
 
+    /// <summary>Loads a saved report by ID and converts it to a downloadable PDF.</summary>
     public async Task<(string FileName, byte[] PdfContent)> ExportReportPdfAsync(Guid reportId)
     {
         var cacheKey = GetReportCacheKey(reportId);
@@ -141,6 +149,7 @@ public class AdminService(IAdminRepository adminRepository, IMemoryCache memoryC
         return BuildPdf(dto);
     }
 
+    /// <summary>Returns paginated audit logs with optional date, action, and entity filters.</summary>
     public async Task<PagedResultDto<AuditLogDto>> GetAuditLogsAsync(DateOnly? from, DateOnly? to, string? action, string? entityType, int page, int pageSize)
     {
         if (page <= 0)
@@ -166,6 +175,7 @@ public class AdminService(IAdminRepository adminRepository, IMemoryCache memoryC
         };
     }
 
+    /// <summary>Persists a report snapshot with serialized data for later PDF export.</summary>
     private async Task<Report> SaveReportAsync<T>(string reportType, Guid adminUserId, DateOnly? from, DateOnly? to, T data)
     {
         var report = new Report
@@ -221,6 +231,7 @@ public class AdminService(IAdminRepository adminRepository, IMemoryCache memoryC
         return (fromUtc, toUtc);
     }
 
+    /// <summary>Tries to extract a monetary amount from the audit log's JSON Details field.</summary>
     private static decimal ExtractAmount(string? detailsJson)
     {
         if (string.IsNullOrWhiteSpace(detailsJson))
@@ -285,6 +296,7 @@ public class AdminService(IAdminRepository adminRepository, IMemoryCache memoryC
         return false;
     }
 
+    /// <summary>Builds a simple single-page PDF from a list of text lines using raw PDF syntax.</summary>
     private static (string FileName, byte[] PdfContent) BuildPdf(ReportSnapshotDto report)
     {
         var fileName = $"{report.ReportType.ToLowerInvariant()}-{report.ReportId}.pdf";
@@ -337,6 +349,7 @@ public class AdminService(IAdminRepository adminRepository, IMemoryCache memoryC
         return (fileName, CreateSimplePdf(lines));
     }
 
+    /// <summary>Generates a minimal valid PDF 1.4 document with Helvetica text content.</summary>
     private static byte[] CreateSimplePdf(List<string> inputLines)
     {
         var lines = inputLines

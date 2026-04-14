@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace SmartSure.IdentityService.DTOs;
 
+/// <summary>Request body for the email/password login endpoint.</summary>
 public class LoginDto
 {
     [Required(ErrorMessage = "Email is required.")]

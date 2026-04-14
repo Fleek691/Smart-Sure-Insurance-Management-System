@@ -3,6 +3,10 @@ using SmartSure.Shared.Events;
 
 namespace SmartSure.IdentityService.Consumers;
 
+/// <summary>
+/// Listens for <see cref="ClaimApprovedEvent"/> messages from the ClaimsService.
+/// Currently logs the approval. Extend to trigger payout notifications or update user records.
+/// </summary>
 public class ClaimApprovedConsumer(ILogger<ClaimApprovedConsumer> logger) : IConsumer<ClaimApprovedEvent>
 {
     private readonly ILogger<ClaimApprovedConsumer> _logger = logger;

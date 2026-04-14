@@ -8,6 +8,10 @@ using SmartSure.Shared.Events;
 using SmartSure.Shared.Exceptions;
 namespace SmartSure.PolicyService.Services;
 
+/// <summary>
+/// Implements policy lifecycle: product catalog (with caching), premium calculation,
+/// policy purchase, cancellation, and admin status management.
+/// </summary>
 public class PolicyService : IPolicyService
 {
     private readonly IPolicyRepository _policyRepository;
@@ -27,6 +31,7 @@ public class PolicyService : IPolicyService
         _logger = logger;
     }
 
+    /// <summary>Returns all insurance products, cached for 60 minutes.</summary>
     public async Task<List<InsuranceProductDto>> GetProductsAsync()
     {
         if (_memoryCache.TryGetValue("insurance_types_all", out List<InsuranceProductDto>? cachedProducts) && cachedProducts is not null)
@@ -46,6 +51,7 @@ public class PolicyService : IPolicyService
         return result;
     }
 
+    /// <summary>Retrieves a single insurance product by ID.</summary>
     public async Task<InsuranceProductDto> GetProductByIdAsync(int productId)
     {
         var product = await _policyRepository.GetProductByIdAsync(productId)
@@ -54,6 +60,7 @@ public class PolicyService : IPolicyService
         return MapProduct(product);
     }
 
+    /// <summary>Creates a new insurance product; auto-creates the parent type if it doesn't exist.</summary>
     public async Task<InsuranceProductDto> CreateProductAsync(CreateInsuranceProductDto dto)
     {
         var type = await _policyRepository.GetTypeByNameAsync(dto.TypeName.Trim());
@@ -83,6 +90,7 @@ public class PolicyService : IPolicyService
         return MapProduct(product);
     }
 
+    /// <summary>Updates an existing insurance product's type, name, and base premium.</summary>
     public async Task<InsuranceProductDto> UpdateProductAsync(int productId, UpdateInsuranceProductDto dto)
     {
         var product = await _policyRepository.GetProductByIdAsync(productId)
@@ -111,6 +119,7 @@ public class PolicyService : IPolicyService
         return MapProduct(product);
     }
 
+    /// <summary>Deletes an insurance product and invalidates the product cache.</summary>
     public async Task DeleteProductAsync(int productId)
     {
         var product = await _policyRepository.GetProductByIdAsync(productId)
@@ -121,6 +130,7 @@ public class PolicyService : IPolicyService
         _memoryCache.Remove("insurance_types_all");
     }
 
+    /// <summary>Calculates monthly premium based on base premium, coverage amount, and term.</summary>
     public async Task<PremiumCalculationDto> CalculatePremiumAsync(int productId, decimal coverageAmount, int termMonths)
     {
         var product = await _policyRepository.GetProductByIdAsync(productId)
@@ -148,6 +158,10 @@ public class PolicyService : IPolicyService
         };
     }
 
+    /// <summary>
+    /// Creates and activates a policy: validates dates, calculates premium,
+    /// persists the policy, and publishes a PolicyActivatedEvent.
+    /// </summary>
     public async Task<PolicyDto> PurchasePolicyAsync(Guid userId, PurchasePolicyDto dto)
     {
         if (dto.InsuranceDate.Date < DateTime.UtcNow.Date)
@@ -205,6 +219,7 @@ public class PolicyService : IPolicyService
         return MapPolicy(policy);
     }
 
+    /// <summary>Returns all policies for a customer, cached for 2 minutes.</summary>
     public async Task<List<PolicyDto>> GetMyPoliciesAsync(Guid userId)
     {
         var cacheKey = GetUserPoliciesCacheKey(userId);
@@ -225,6 +240,7 @@ public class PolicyService : IPolicyService
         return result;
     }
 
+    /// <summary>Retrieves a single policy by ID, cached for 5 minutes.</summary>
     public async Task<PolicyDto> GetPolicyByIdAsync(Guid policyId)
     {
         var cacheKey = GetPolicyCacheKey(policyId);
@@ -241,6 +257,7 @@ public class PolicyService : IPolicyService
         return result;
     }
 
+    /// <summary>Cancels a policy owned by the user and publishes a PolicyCancelledEvent.</summary>
     public async Task<PolicyDto> CancelPolicyAsync(Guid policyId, Guid userId)
     {
         var policy = await _policyRepository.GetByIdAsync(policyId)
@@ -286,6 +303,7 @@ public class PolicyService : IPolicyService
         return MapPolicy(policy);
     }
 
+    /// <summary>Returns all policies for admin view (no caching — always fresh).</summary>
     public async Task<List<PolicyDto>> GetAllPoliciesForAdminAsync()
     {
         var policies = await _policyRepository.GetAllAsync();
@@ -299,6 +317,7 @@ public class PolicyService : IPolicyService
         return result;
     }
 
+    /// <summary>Admin-only: updates a policy's status and publishes the relevant event.</summary>
     public async Task<PolicyDto> UpdatePolicyStatusAsync(Guid policyId, string status)
     {
         var nextStatus = status.Trim().ToUpperInvariant();

@@ -13,11 +13,15 @@ using PolicyPayment = SmartSure.PolicyService.Models.Payment;
 
 namespace SmartSure.PolicyService.Services;
 
+/// <summary>
+/// Handles the two-step Razorpay payment flow:
+/// 1. <see cref="CreateOrderAsync"/> — creates a Razorpay order and caches the pending purchase.
+/// 2. <see cref="VerifyAndActivateAsync"/> — verifies the HMAC signature, activates the policy, and records the payment.
+/// </summary>
 public class RazorpayService : IRazorpayService
 {
     private const string PendingOrderCachePrefix = "razorpay_pending_";
     private const int PendingOrderTtlMinutes = 30;
-
     private readonly IConfiguration _configuration;
     private readonly IPolicyRepository _policyRepository;
     private readonly IMemoryCache _memoryCache;
@@ -40,6 +44,11 @@ public class RazorpayService : IRazorpayService
 
     // ── Create Order ──────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Step 1 — Creates a Razorpay order for the given product and purchase parameters.
+    /// Caches the pending purchase details (keyed by a random token) so they can be
+    /// retrieved after the frontend completes payment and calls VerifyAndActivateAsync.
+    /// </summary>
     public async Task<PaymentOrderResponseDto> CreateOrderAsync(Guid userId, CreatePaymentOrderDto dto)
     {
         ValidatePurchaseInput(dto.ProductId, dto.CoverageAmount, dto.TermMonths, dto.InsuranceDate);
@@ -113,6 +122,11 @@ public class RazorpayService : IRazorpayService
 
     // ── Verify & Activate ─────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Step 2 — Verifies the Razorpay HMAC-SHA256 signature, activates the policy,
+    /// records the payment, and publishes a PolicyActivatedEvent.
+    /// The pending cache entry is removed after verification to prevent replay attacks.
+    /// </summary>
     public async Task<PolicyDto> VerifyAndActivateAsync(Guid userId, VerifyPaymentDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.PendingOrderToken))
@@ -221,6 +235,7 @@ public class RazorpayService : IRazorpayService
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    /// <summary>Validates all purchase input fields before creating a Razorpay order.</summary>
     private static void ValidatePurchaseInput(int productId, decimal coverageAmount, int termMonths, DateTime insuranceDate)
     {
         if (productId <= 0)
@@ -242,6 +257,10 @@ public class RazorpayService : IRazorpayService
             throw new ValidationException("Insurance start date cannot be more than 1 year in the future.");
     }
 
+    /// <summary>
+    /// Calculates the monthly premium using base premium, coverage factor, and term factor.
+    /// Minimum term factor is 0.5 to avoid very low premiums for short-term policies.
+    /// </summary>
     private static decimal CalculatePremium(decimal basePremium, decimal coverageAmount, int termMonths)
     {
         var coverageFactor = coverageAmount / 100_000m;
@@ -249,6 +268,10 @@ public class RazorpayService : IRazorpayService
         return Math.Round(basePremium * coverageFactor * Math.Max(termFactor, 0.5m), 2);
     }
 
+    /// <summary>
+    /// Verifies the Razorpay webhook signature using HMAC-SHA256.
+    /// Razorpay signs the payload as: razorpay_order_id + "|" + razorpay_payment_id.
+    /// </summary>
     private static bool VerifySignature(string payload, string signature, string secret)
     {
         var keyBytes     = Encoding.UTF8.GetBytes(secret);

@@ -18,6 +18,7 @@ public class PoliciesController(IPolicyService policyService, IRazorpayService r
     private readonly IPolicyService _policyService = policyService;
     private readonly IRazorpayService _razorpayService = razorpayService;
 
+    /// <summary>Returns all available insurance products (public, no auth required).</summary>
     [HttpGet("products")]
     [AllowAnonymous]
     public async Task<List<InsuranceProductDto>> GetProducts()
@@ -32,6 +33,7 @@ public class PoliciesController(IPolicyService policyService, IRazorpayService r
         return await _policyService.GetProductByIdAsync(id);
     }
 
+    /// <summary>Admin-only: creates a new insurance product under a type/subtype.</summary>
     [HttpPost("products")]
     [Authorize(Roles = Roles.Admin)]
     public async Task<InsuranceProductDto> CreateProduct([FromBody] CreateInsuranceProductDto dto)
@@ -54,6 +56,7 @@ public class PoliciesController(IPolicyService policyService, IRazorpayService r
         return NoContent();
     }
 
+    /// <summary>Customer: calculates the monthly premium for a product, coverage, and term.</summary>
     [HttpGet("calculate-premium")]
     [Authorize(Roles = Roles.Customer)]
     public async Task<PremiumCalculationDto> CalculatePremium([FromQuery] int productId, [FromQuery] decimal coverageAmount, [FromQuery] int termMonths)
@@ -61,6 +64,7 @@ public class PoliciesController(IPolicyService policyService, IRazorpayService r
         return await _policyService.CalculatePremiumAsync(productId, coverageAmount, termMonths);
     }
 
+    /// <summary>Customer: purchases a policy directly (non-Razorpay flow).</summary>
     [HttpPost("purchase")]
     [Authorize(Roles = Roles.Customer)]
     public async Task<PolicyDto> Purchase([FromBody] PurchasePolicyDto dto)
@@ -96,6 +100,7 @@ public class PoliciesController(IPolicyService policyService, IRazorpayService r
         return await _razorpayService.VerifyAndActivateAsync(userId, dto);
     }
 
+    /// <summary>Customer: returns all policies owned by the authenticated user.</summary>
     [HttpGet("my-policies")]
     [Authorize(Roles = Roles.Customer)]
     public async Task<List<PolicyDto>> GetMyPolicies()
@@ -113,6 +118,7 @@ public class PoliciesController(IPolicyService policyService, IRazorpayService r
         return policy;
     }
 
+    /// <summary>Customer: cancels an active policy and publishes a PolicyCancelledEvent.</summary>
     [HttpPost("{id:guid}/cancel")]
     [Authorize(Roles = Roles.Customer)]
     public async Task<PolicyDto> Cancel(Guid id)
@@ -121,6 +127,7 @@ public class PoliciesController(IPolicyService policyService, IRazorpayService r
         return await _policyService.CancelPolicyAsync(id, userId);
     }
 
+    /// <summary>Admin-only: returns all policies across all users.</summary>
     [HttpGet("admin/all")]
     [Authorize(Roles = Roles.Admin)]
     public async Task<List<PolicyDto>> GetAllForAdmin()
@@ -128,6 +135,7 @@ public class PoliciesController(IPolicyService policyService, IRazorpayService r
         return await _policyService.GetAllPoliciesForAdminAsync();
     }
 
+    /// <summary>Admin-only: updates a policy's lifecycle status.</summary>
     [HttpPut("admin/{id:guid}/status")]
     [Authorize(Roles = Roles.Admin)]
     public async Task<PolicyDto> UpdatePolicyStatus(Guid id, [FromBody] UpdatePolicyStatusDto dto)
@@ -145,6 +153,7 @@ public class PoliciesController(IPolicyService policyService, IRazorpayService r
             : throw new UnauthorizedException("User id claim not found.");
     }
 
+    /// <summary>Verifies the caller owns the policy or is an admin.</summary>
     private void EnsureReadAccess(PolicyDto policy)
     {
         if (User.IsInRole(Roles.Admin))

@@ -3,6 +3,10 @@ using SmartSure.Shared.Events;
 
 namespace SmartSure.IdentityService.Consumers;
 
+/// <summary>
+/// Listens for <see cref="ClaimStatusChangedEvent"/> messages from the ClaimsService.
+/// Currently logs the transition. Extend to notify users of status changes in real time.
+/// </summary>
 public class ClaimStatusChangedConsumer(ILogger<ClaimStatusChangedConsumer> logger) : IConsumer<ClaimStatusChangedEvent>
 {
     private readonly ILogger<ClaimStatusChangedConsumer> _logger = logger;

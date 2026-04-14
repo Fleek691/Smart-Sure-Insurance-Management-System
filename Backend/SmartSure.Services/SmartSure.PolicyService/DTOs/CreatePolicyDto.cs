@@ -2,6 +2,10 @@ using System.ComponentModel.DataAnnotations;
 
 namespace SmartSure.PolicyService.DTOs;
 
+/// <summary>
+/// Legacy request body for creating a policy directly (without Razorpay).
+/// Prefer <see cref="PurchasePolicyDto"/> for the standard purchase flow.
+/// </summary>
 public class CreatePolicyDto
 {
     [Required]

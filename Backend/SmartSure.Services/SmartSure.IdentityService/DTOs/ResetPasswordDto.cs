@@ -2,6 +2,10 @@ using System.ComponentModel.DataAnnotations;
 
 namespace SmartSure.IdentityService.DTOs;
 
+/// <summary>
+/// Request body for the reset-password endpoint.
+/// Requires the OTP received via email plus the desired new password.
+/// </summary>
 public class ResetPasswordDto
 {
     [Required(ErrorMessage = "Email is required.")]

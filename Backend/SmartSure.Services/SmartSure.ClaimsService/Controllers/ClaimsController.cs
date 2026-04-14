@@ -19,6 +19,7 @@ public class ClaimsController(IClaimService claimService, IClaimAdminService cla
     private readonly IClaimService _claimService = claimService;
     private readonly IClaimAdminService _claimAdminService = claimAdminService;
 
+    /// <summary>Customer: creates a new claim in DRAFT status after verifying the policy.</summary>
     [HttpPost]
     [Authorize(Roles = Roles.Customer)]
     public async Task<ClaimDto> Create([FromBody] CreateClaimDto dto)
@@ -28,6 +29,7 @@ public class ClaimsController(IClaimService claimService, IClaimAdminService cla
         return await _claimService.CreateClaimAsync(userId, dto, bearerToken);
     }
 
+    /// <summary>Customer: returns all claims filed by the authenticated user.</summary>
     [HttpGet("my-claims")]
     [Authorize(Roles = Roles.Customer)]
     public async Task<List<ClaimDto>> GetMyClaims()
@@ -45,6 +47,7 @@ public class ClaimsController(IClaimService claimService, IClaimAdminService cla
         return await _claimService.GetClaimAsync(id, userId, isAdmin);
     }
 
+    /// <summary>Customer: transitions a DRAFT claim to SUBMITTED (requires documents).</summary>
     [HttpPost("{id:guid}/submit")]
     [Authorize(Roles = Roles.Customer)]
     public async Task<ClaimDto> Submit(Guid id)
@@ -53,6 +56,7 @@ public class ClaimsController(IClaimService claimService, IClaimAdminService cla
         return await _claimService.SubmitClaimAsync(id, userId);
     }
 
+    /// <summary>Customer: uploads a base64-encoded document to a DRAFT claim.</summary>
     [HttpPost("{id:guid}/documents")]
     [Authorize(Roles = Roles.Customer)]
     public async Task<ClaimDocumentDto> UploadDocument(Guid id, [FromBody] UploadClaimDocumentDto dto)
@@ -70,6 +74,7 @@ public class ClaimsController(IClaimService claimService, IClaimAdminService cla
         return await _claimService.GetDocumentsAsync(id, userId, isAdmin);
     }
 
+    /// <summary>Customer: removes a document from a DRAFT claim.</summary>
     [HttpDelete("{id:guid}/documents/{docId:guid}")]
     [Authorize(Roles = Roles.Customer)]
     public async Task<IActionResult> DeleteDocument(Guid id, Guid docId)
@@ -79,6 +84,7 @@ public class ClaimsController(IClaimService claimService, IClaimAdminService cla
         return NoContent();
     }
 
+    /// <summary>Admin-only: returns all claims across all customers.</summary>
     [HttpGet("admin/all")]
     [Authorize(Roles = Roles.Admin)]
     public async Task<List<ClaimDto>> GetAllForAdmin()
@@ -86,6 +92,7 @@ public class ClaimsController(IClaimService claimService, IClaimAdminService cla
         return await _claimAdminService.GetAllClaimsForAdminAsync();
     }
 
+    /// <summary>Admin-only: marks a SUBMITTED claim as UNDER_REVIEW.</summary>
     [HttpPut("admin/{id:guid}/review")]
     [Authorize(Roles = Roles.Admin)]
     public async Task<ClaimDto> SetUnderReview(Guid id, [FromBody] ReviewClaimDto dto)
@@ -94,6 +101,7 @@ public class ClaimsController(IClaimService claimService, IClaimAdminService cla
         return await _claimAdminService.MarkUnderReviewAsync(id, adminId, dto.Note);
     }
 
+    /// <summary>Admin-only: approves a claim with an optional approved amount.</summary>
     [HttpPut("admin/{id:guid}/approve")]
     [Authorize(Roles = Roles.Admin)]
     public async Task<ClaimDto> Approve(Guid id, [FromBody] ApproveClaimDto dto)
@@ -102,6 +110,7 @@ public class ClaimsController(IClaimService claimService, IClaimAdminService cla
         return await _claimAdminService.ApproveClaimAsync(id, adminId, dto.ApprovedAmount, dto.Note);
     }
 
+    /// <summary>Admin-only: rejects a claim with a mandatory reason.</summary>
     [HttpPut("admin/{id:guid}/reject")]
     [Authorize(Roles = Roles.Admin)]
     public async Task<ClaimDto> Reject(Guid id, [FromBody] RejectClaimDto dto)

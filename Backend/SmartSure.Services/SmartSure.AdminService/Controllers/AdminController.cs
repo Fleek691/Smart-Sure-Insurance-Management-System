@@ -19,30 +19,35 @@ public class AdminController(IAdminService adminService) : ControllerBase
 {
     private readonly IAdminService _adminService = adminService;
 
+    /// <summary>Returns high-level dashboard KPIs (total policies, claims, revenue).</summary>
     [HttpGet("dashboard/stats")]
     public async Task<DashboardStatsDto> GetDashboardStats()
     {
         return await _adminService.GetDashboardStatsAsync();
     }
 
+    /// <summary>Generates a policy report grouped by action for the given date range.</summary>
     [HttpGet("reports/policies")]
     public async Task<PolicyReportDto> GetPolicyReport([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] string? type)
     {
         return await _adminService.GetPolicyReportAsync(GetUserId(), from, to, type);
     }
 
+    /// <summary>Generates a claims report grouped by status for the given date range.</summary>
     [HttpGet("reports/claims")]
     public async Task<ClaimsReportDto> GetClaimsReport([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] string? status)
     {
         return await _adminService.GetClaimsReportAsync(GetUserId(), from, to, status);
     }
 
+    /// <summary>Generates a revenue report with daily data points for the given date range.</summary>
     [HttpGet("reports/revenue")]
     public async Task<RevenueReportDto> GetRevenueReport([FromQuery] DateOnly? from, [FromQuery] DateOnly? to)
     {
         return await _adminService.GetRevenueReportAsync(GetUserId(), from, to);
     }
 
+    /// <summary>Exports a previously generated report as a downloadable PDF file.</summary>
     [HttpGet("reports/export")]
     public async Task<IActionResult> ExportReport([FromQuery] Guid reportId)
     {
@@ -56,6 +61,7 @@ public class AdminController(IAdminService adminService) : ControllerBase
         return File(pdfContent, "application/pdf", fileName);
     }
 
+    /// <summary>Returns paginated audit logs with optional filters.</summary>
     [HttpGet("audit-logs")]
     public async Task<PagedResultDto<AuditLogDto>> GetAuditLogs(
         [FromQuery] DateOnly? from,

@@ -4,6 +4,10 @@ using SmartSure.ClaimsService.Models;
 
 namespace SmartSure.ClaimsService.Repositories;
 
+/// <summary>
+/// EF Core implementation of <see cref="IClaimRepository"/>.
+/// Handles persistence for claims, documents, and status history.
+/// </summary>
 public class ClaimRepository : IClaimRepository
 {
     private readonly ClaimsDbContext _context;
@@ -13,6 +17,7 @@ public class ClaimRepository : IClaimRepository
         _context = context;
     }
 
+    /// <summary>Returns a claim by ID with its documents and status history eagerly loaded.</summary>
     public Task<Claim?> GetByIdAsync(Guid claimId)
     {
         return _context.Claims
@@ -21,6 +26,7 @@ public class ClaimRepository : IClaimRepository
             .FirstOrDefaultAsync(x => x.ClaimId == claimId);
     }
 
+    /// <summary>Returns all claims for a specific user, newest first.</summary>
     public Task<List<Claim>> GetByUserIdAsync(Guid userId)
     {
         return _context.Claims
@@ -29,6 +35,7 @@ public class ClaimRepository : IClaimRepository
             .ToListAsync();
     }
 
+    /// <summary>Returns all claims across all users, newest first (admin use).</summary>
     public Task<List<Claim>> GetAllAsync()
     {
         return _context.Claims
@@ -41,6 +48,7 @@ public class ClaimRepository : IClaimRepository
         await _context.Claims.AddAsync(claim);
     }
 
+    /// <summary>Returns all documents attached to a claim, newest first.</summary>
     public Task<List<ClaimDocument>> GetDocumentsAsync(Guid claimId)
     {
         return _context.ClaimDocuments
@@ -49,6 +57,7 @@ public class ClaimRepository : IClaimRepository
             .ToListAsync();
     }
 
+    /// <summary>Returns a specific document by claim ID and document ID.</summary>
     public Task<ClaimDocument?> GetDocumentByIdAsync(Guid claimId, Guid docId)
     {
         return _context.ClaimDocuments.FirstOrDefaultAsync(x => x.ClaimId == claimId && x.DocId == docId);
@@ -65,6 +74,7 @@ public class ClaimRepository : IClaimRepository
         return Task.CompletedTask;
     }
 
+    /// <summary>Appends a new entry to the claim's status history audit trail.</summary>
     public async Task AddStatusHistoryAsync(ClaimStatusHistory statusHistory)
     {
         await _context.ClaimStatusHistory.AddAsync(statusHistory);

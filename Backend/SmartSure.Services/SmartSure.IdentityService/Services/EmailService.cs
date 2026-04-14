@@ -4,6 +4,10 @@ using MimeKit;
 
 namespace SmartSure.IdentityService.Services;
 
+/// <summary>
+/// Sends transactional emails (OTPs, password resets) via SMTP using MailKit.
+/// SMTP credentials and host settings are read from configuration / .env.
+/// </summary>
 public class EmailService : IEmailService
 {
     private readonly IConfiguration _configuration;
@@ -13,6 +17,11 @@ public class EmailService : IEmailService
         _configuration = configuration;
     }
 
+    /// <summary>
+    /// Composes and sends an HTML email to <paramref name="toEmail"/>.
+    /// Connects to the configured SMTP host, authenticates if credentials are present,
+    /// sends the message, and disconnects cleanly.
+    /// </summary>
     public async Task SendAsync(string toEmail, string subject, string body)
     {
         var message = new MimeMessage();
@@ -29,6 +38,7 @@ public class EmailService : IEmailService
 
         await client.ConnectAsync(host, port, false);
 
+        // Only authenticate when credentials are configured (allows local dev without SMTP auth)
         var username = _configuration["Email:SmtpUser"];
         var password = _configuration["Email:SmtpPass"];
         if (!string.IsNullOrWhiteSpace(username) && !string.IsNullOrWhiteSpace(password))

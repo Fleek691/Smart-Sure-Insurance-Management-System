@@ -5,16 +5,29 @@ using SmartSure.AdminService.Models;
 
 namespace SmartSure.AdminService.Repositories;
 
+/// <summary>
+/// EF Core implementation of <see cref="IAdminRepository"/>.
+/// All queries are built through a shared <see cref="BuildAuditQuery"/> helper
+/// that applies optional date, action, and entity-type filters.
+/// </summary>
 public class AdminRepository(AdminDbContext dbContext) : IAdminRepository
 {
     private readonly AdminDbContext _dbContext = dbContext;
 
+    /// <summary>
+    /// Counts distinct entity IDs of the given type within the date range.
+    /// Used to populate TotalPolicies and TotalClaims on the dashboard.
+    /// </summary>
     public async Task<int> CountDistinctEntitiesAsync(string entityType, DateTime? fromUtc, DateTime? toUtc)
     {
         var query = BuildAuditQuery(fromUtc, toUtc, null, entityType);
         return await query.Select(x => x.EntityId).Distinct().CountAsync();
     }
 
+    /// <summary>
+    /// Sums monetary amounts extracted from the JSON Details field of audit logs
+    /// for the given entity type and date range. Used for the revenue dashboard KPI.
+    /// </summary>
     public async Task<decimal> SumAmountFromAuditDetailsAsync(string entityType, DateTime? fromUtc, DateTime? toUtc)
     {
         var logs = await BuildAuditQuery(fromUtc, toUtc, null, entityType).AsNoTracking().ToListAsync();
@@ -28,6 +41,7 @@ public class AdminRepository(AdminDbContext dbContext) : IAdminRepository
         return total;
     }
 
+    /// <summary>Returns a paginated, ordered page of audit logs matching the given filters.</summary>
     public async Task<List<AuditLog>> GetAuditLogsAsync(DateTime? fromUtc, DateTime? toUtc, string? action, string? entityType, int page, int pageSize)
     {
         return await BuildAuditQuery(fromUtc, toUtc, action, entityType)
@@ -38,11 +52,13 @@ public class AdminRepository(AdminDbContext dbContext) : IAdminRepository
             .ToListAsync();
     }
 
+    /// <summary>Returns the total count of audit logs matching the given filters (for pagination metadata).</summary>
     public async Task<int> GetAuditLogsCountAsync(DateTime? fromUtc, DateTime? toUtc, string? action, string? entityType)
     {
         return await BuildAuditQuery(fromUtc, toUtc, action, entityType).CountAsync();
     }
 
+    /// <summary>Returns policy audit logs, optionally filtered by action substring (e.g. type name).</summary>
     public async Task<List<AuditLog>> GetPolicyLogsAsync(DateTime? fromUtc, DateTime? toUtc, string? typeFilter)
     {
         var query = BuildAuditQuery(fromUtc, toUtc, null, "Policy");
@@ -55,6 +71,7 @@ public class AdminRepository(AdminDbContext dbContext) : IAdminRepository
         return await query.AsNoTracking().ToListAsync();
     }
 
+    /// <summary>Returns claim audit logs, optionally filtered by action substring (e.g. status name).</summary>
     public async Task<List<AuditLog>> GetClaimLogsAsync(DateTime? fromUtc, DateTime? toUtc, string? statusFilter)
     {
         var query = BuildAuditQuery(fromUtc, toUtc, null, "Claim");
@@ -67,6 +84,7 @@ public class AdminRepository(AdminDbContext dbContext) : IAdminRepository
         return await query.AsNoTracking().ToListAsync();
     }
 
+    /// <summary>Returns all policy audit logs in the date range — used to build the revenue report.</summary>
     public async Task<List<AuditLog>> GetRevenueLogsAsync(DateTime? fromUtc, DateTime? toUtc)
     {
         return await BuildAuditQuery(fromUtc, toUtc, null, "Policy")
@@ -91,6 +109,12 @@ public class AdminRepository(AdminDbContext dbContext) : IAdminRepository
         await _dbContext.SaveChangesAsync();
     }
 
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds a base IQueryable with optional date range, action, and entity-type filters.
+    /// All public query methods compose on top of this.
+    /// </summary>
     private IQueryable<AuditLog> BuildAuditQuery(DateTime? fromUtc, DateTime? toUtc, string? action, string? entityType)
     {
         var query = _dbContext.AuditLogs.AsQueryable();
@@ -118,6 +142,11 @@ public class AdminRepository(AdminDbContext dbContext) : IAdminRepository
         return query;
     }
 
+    /// <summary>
+    /// Tries to extract a monetary amount from an audit log's JSON Details field.
+    /// Checks "amount", "monthlyPremium", "premium", and "approvedAmount" in order.
+    /// Returns 0 if the field is missing or the JSON is malformed.
+    /// </summary>
     private static decimal ExtractAmount(string? detailsJson)
     {
         if (string.IsNullOrWhiteSpace(detailsJson))
@@ -156,6 +185,10 @@ public class AdminRepository(AdminDbContext dbContext) : IAdminRepository
         }
     }
 
+    /// <summary>
+    /// Case-insensitive property lookup on a JSON element.
+    /// Handles both numeric and string-encoded decimal values.
+    /// </summary>
     private static bool TryGetDecimal(JsonElement element, string propertyName, out decimal value)
     {
         value = 0m;
