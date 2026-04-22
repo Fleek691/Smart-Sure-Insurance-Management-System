@@ -29,6 +29,17 @@ graph TD
 
 ---
 
+## 1.1 Technology Stack
+
+- **Backend Framework:** .NET 7 (C#)
+- **API Gateway:** Ocelot
+- **Database:** SQL Server (Entity Framework Core ORM)
+- **Messaging:** RabbitMQ (for event-driven communication)
+- **Authentication:** JWT Bearer Tokens
+- **Other Integrations:** Razorpay (payments), SMTP (email)
+
+---
+
 ## 2. Component Details
 
 ### 2.1 Gateway (SmartSure.Gateway)
@@ -76,6 +87,12 @@ graph TD
   - **Constants:** `ClaimStatus.cs`, `PolicyStatus.cs`, `Roles.cs`
   - **Extensions:** `MiddlewareExtensions.cs`, `SerilogExtensions.cs`
 
+### 2.7 External Integrations
+
+- **Razorpay:** Used by PolicyService for payment processing.
+- **SMTP/Email:** Used by IdentityService for notifications and password resets.
+- **RabbitMQ:** Used for event publishing and consumption between services.
+
 ---
 
 ## 3. Interactions
@@ -87,17 +104,91 @@ graph TD
 
 ---
 
-## 4. Images
+## 4. Key Flows (Sequence Diagrams)
 
-- The Mermaid diagram above can be rendered as an image in documentation tools that support Mermaid.
-- For more detailed sequence or flow diagrams, specify which flows you want visualized (e.g., claim submission, user registration).
+### 4.1 Claim Submission Flow
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Gateway
+  participant ClaimsService
+  participant Shared
+  User->>Gateway: Submit Claim Request
+  Gateway->>ClaimsService: Forward Claim Request
+  ClaimsService->>Shared: Validate & Store Claim
+  ClaimsService-->>Gateway: Claim Created Response
+  Gateway-->>User: Claim Created Response
+```
+
+### 4.2 User Registration Flow
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Gateway
+  participant IdentityService
+  participant Shared
+  User->>Gateway: Register
+  Gateway->>IdentityService: Forward Registration
+  IdentityService->>Shared: Create User, Send Email
+  IdentityService-->>Gateway: Registration Success
+  Gateway-->>User: Registration Success
+```
 
 ---
 
-## 5. Extensibility & Best Practices
+## 5. Security & Authentication
 
-- Each service is independently deployable and testable.
-- Shared code ensures consistency and reduces duplication.
-- Event-driven design allows for future integrations and scalability.
+- **Authentication:** JWT tokens issued by IdentityService, validated by Gateway and downstream services.
+- **Authorization:** Role-based (see Shared/Constants/Roles.cs).
+- **Exception Handling:** Centralized via GlobalExceptionHandlerMiddleware.
+- **Input Validation:** DTOs and validation exceptions.
+- **Sensitive Data:** Passwords hashed, tokens securely generated.
+
+---
+
+## 6. Entity Relationship Diagram (ERD)
+
+```mermaid
+erDiagram
+  User ||--o{ UserRole : has
+  Role ||--o{ UserRole : has
+  User ||--o{ Claim : submits
+  Claim ||--o{ ClaimDocument : has
+  Policy ||--o{ PolicyDetail : has
+  Policy ||--o{ Payment : paid_by
+  Policy ||--o{ Premium : calculates
+  Policy ||--o{ VehicleDetail : covers
+  Policy ||--o{ HomeDetail : covers
+```
+
+---
+
+## 7. API Endpoint Summaries
+
+### 7.1 AdminService
+- `GET /api/admin/dashboard` - Get dashboard stats
+- `GET /api/admin/reports` - Get reports
+- `GET /api/admin/audit-logs` - Get audit logs
+
+### 7.2 ClaimsService
+- `POST /api/claims` - Submit a new claim
+- `GET /api/claims/{id}` - Get claim details
+- `POST /api/claims/{id}/documents` - Upload claim documents
+- `GET /api/claims` - List all claims
+
+### 7.3 IdentityService
+- `POST /api/auth/login` - User login
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/forgot-password` - Request password reset
+- `POST /api/auth/reset-password` - Reset password
+- `GET /api/users/{id}` - Get user profile
+
+### 7.4 PolicyService
+- `GET /api/policies` - List policies
+- `POST /api/policies` - Purchase policy
+- `GET /api/policies/{id}` - Get policy details
+- `POST /api/policies/{id}/pay` - Make payment
 
 ---
