@@ -230,6 +230,140 @@ erDiagram
 
 ---
 
+## Class Diagrams for Core Services
+
+### AdminService
+```mermaid
+classDiagram
+    class AdminController {
+        +GetDashboard()
+        +GetReports()
+        +GetAuditLogs()
+    }
+    class AdminService {
+        +GetDashboardStats()
+        +GetReports()
+        +GetAuditLogs()
+    }
+    class AdminRepository {
+        +GetDashboardData()
+        +GetReportsData()
+        +GetAuditLogsData()
+    }
+    AdminController --> AdminService
+    AdminService --> AdminRepository
+```
+
+### ClaimsService
+```mermaid
+classDiagram
+    class ClaimsController {
+        +SubmitClaim()
+        +GetClaim(id)
+        +UploadDocument(id)
+        +ListClaims()
+    }
+    class ClaimService {
+        +CreateClaim()
+        +GetClaimById()
+        +ListClaims()
+    }
+    class ClaimAdminService {
+        +ApproveClaim()
+        +RejectClaim()
+    }
+    class ClaimEventPublisher {
+        +PublishClaimEvent()
+    }
+    class ClaimRepository {
+        +AddClaim()
+        +GetClaim()
+        +ListClaims()
+    }
+    ClaimsController --> ClaimService
+    ClaimsController --> ClaimAdminService
+    ClaimService --> ClaimRepository
+    ClaimAdminService --> ClaimRepository
+    ClaimService --> ClaimEventPublisher
+```
+
+### IdentityService
+```mermaid
+classDiagram
+    class AuthController {
+        +Login()
+        +Register()
+        +ForgotPassword()
+        +ResetPassword()
+    }
+    class UsersController {
+        +GetUser(id)
+    }
+    class AuthService {
+        +Authenticate()
+        +RegisterUser()
+        +GenerateToken()
+    }
+    class UserAdministrationService {
+        +GetUser()
+        +UpdateUser()
+    }
+    class EmailService {
+        +SendEmail()
+    }
+    class GoogleAuthService {
+        +AuthenticateWithGoogle()
+    }
+    class UserRepository {
+        +AddUser()
+        +GetUser()
+    }
+    class RoleRepository {
+        +GetRole()
+    }
+    AuthController --> AuthService
+    AuthController --> EmailService
+    AuthController --> GoogleAuthService
+    UsersController --> UserAdministrationService
+    AuthService --> UserRepository
+    UserAdministrationService --> UserRepository
+    AuthService --> RoleRepository
+```
+
+### PolicyService
+```mermaid
+classDiagram
+    class PoliciesController {
+        +ListPolicies()
+        +PurchasePolicy()
+        +GetPolicy(id)
+        +PayForPolicy(id)
+    }
+    class PolicyService {
+        +CreatePolicy()
+        +GetPolicyById()
+        +ListPolicies()
+    }
+    class RazorpayService {
+        +ProcessPayment()
+    }
+    class PolicyEventPublisher {
+        +PublishPolicyEvent()
+    }
+    class PolicyRepository {
+        +AddPolicy()
+        +GetPolicy()
+        +ListPolicies()
+    }
+    PoliciesController --> PolicyService
+    PoliciesController --> RazorpayService
+    PolicyService --> PolicyRepository
+    PolicyService --> PolicyEventPublisher
+    RazorpayService --> PolicyRepository
+```
+
+---
+
 ## API Endpoint Summaries (Sample)
 
 ### AdminService
