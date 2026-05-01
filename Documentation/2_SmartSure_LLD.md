@@ -173,7 +173,7 @@ classDiagram
 
 #### Sequence Diagram: Policy Purchase (Razorpay)
 
-`mermaid
+```mermaid
 sequenceDiagram
     actor Customer
     participant Angular
@@ -216,7 +216,7 @@ sequenceDiagram
     PolicyService-->>Gateway: PolicyDto
     Gateway-->>Angular: 200 OK
     Angular-->>Customer: Policy activated confirmation
-`
+```
 
 #### Sequence Diagram: Policy Cancellation
 
