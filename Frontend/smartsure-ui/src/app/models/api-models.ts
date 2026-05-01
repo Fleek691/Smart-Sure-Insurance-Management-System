@@ -188,12 +188,6 @@ export interface RejectClaimDto {
   reason: string;
 }
 
-export interface DashboardStatsDto {
-  totalPolicies: number;
-  totalClaims: number;
-  totalRevenue: number;
-}
-
 export interface AuditLogDto {
   logId: string;
   userId: string;

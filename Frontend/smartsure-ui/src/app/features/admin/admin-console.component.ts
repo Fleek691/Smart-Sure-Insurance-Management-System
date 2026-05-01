@@ -7,7 +7,6 @@ import {
   AuditLogDto,
   ClaimDocumentDto,
   ClaimDto,
-  DashboardStatsDto,
   InsuranceProductDto,
   PolicyDto,
   ProfileDto
@@ -61,7 +60,7 @@ import { SharedModule } from '../../shared/shared.module';
             </div>
             <div>
               <span class="kpi-label">Total Policies</span>
-              <strong class="kpi-value">{{ stats?.totalPolicies || 0 }}</strong>
+              <strong class="kpi-value">{{ policies.length }}</strong>
             </div>
           </div>
           <div class="kpi-card kpi-claims">
@@ -70,7 +69,7 @@ import { SharedModule } from '../../shared/shared.module';
             </div>
             <div>
               <span class="kpi-label">Total Claims</span>
-              <strong class="kpi-value">{{ stats?.totalClaims || 0 }}</strong>
+              <strong class="kpi-value">{{ claims.length }}</strong>
             </div>
           </div>
           <div class="kpi-card kpi-revenue">
@@ -79,7 +78,7 @@ import { SharedModule } from '../../shared/shared.module';
             </div>
             <div>
               <span class="kpi-label">Revenue</span>
-              <strong class="kpi-value">{{ stats?.totalRevenue | formatCurrency }}</strong>
+              <strong class="kpi-value">{{ totalRevenue | formatCurrency }}</strong>
             </div>
           </div>
           <div class="kpi-card kpi-users">
@@ -146,14 +145,14 @@ import { SharedModule } from '../../shared/shared.module';
           <div class="section-head">
             <div>
               <p class="eyebrow">Claims review</p>
-              <h3>All claims ({{ claims.length }})</h3>
+              <h3>All claims ({{ filteredClaims.length }})</h3>
             </div>
             <div class="filter-chips">
-              <button type="button" [class.active]="claimFilter === 'ALL'" (click)="claimFilter = 'ALL'">All</button>
-              <button type="button" [class.active]="claimFilter === 'SUBMITTED'" (click)="claimFilter = 'SUBMITTED'">Submitted</button>
-              <button type="button" [class.active]="claimFilter === 'UNDER_REVIEW'" (click)="claimFilter = 'UNDER_REVIEW'">Under review</button>
-              <button type="button" [class.active]="claimFilter === 'APPROVED'" (click)="claimFilter = 'APPROVED'">Approved</button>
-              <button type="button" [class.active]="claimFilter === 'REJECTED'" (click)="claimFilter = 'REJECTED'">Rejected</button>
+              <button type="button" [class.active]="claimFilter === 'ALL'" (click)="claimFilter = 'ALL'; claimsPage = 1">All</button>
+              <button type="button" [class.active]="claimFilter === 'SUBMITTED'" (click)="claimFilter = 'SUBMITTED'; claimsPage = 1">Submitted</button>
+              <button type="button" [class.active]="claimFilter === 'UNDER_REVIEW'" (click)="claimFilter = 'UNDER_REVIEW'; claimsPage = 1">Under review</button>
+              <button type="button" [class.active]="claimFilter === 'APPROVED'" (click)="claimFilter = 'APPROVED'; claimsPage = 1">Approved</button>
+              <button type="button" [class.active]="claimFilter === 'REJECTED'" (click)="claimFilter = 'REJECTED'; claimsPage = 1">Rejected</button>
             </div>
           </div>
 
@@ -167,7 +166,7 @@ import { SharedModule } from '../../shared/shared.module';
               <span>Status</span>
             </div>
             <div class="claims-table-row"
-              *ngFor="let claim of filteredClaims"
+              *ngFor="let claim of pagedClaims"
               (click)="selectClaim(claim)"
               [class.selected]="selectedClaim?.claimId === claim.claimId">
               <span class="claim-num">{{ claim.claimNumber }}</span>
@@ -177,6 +176,14 @@ import { SharedModule } from '../../shared/shared.module';
               <app-status-badge [value]="claim.status"></app-status-badge>
             </div>
             <p class="muted" *ngIf="filteredClaims.length === 0" style="padding:1rem 0;text-align:center;">No claims match this filter.</p>
+          </div>
+
+          <!-- Pagination -->
+          <div class="pagination" *ngIf="claimsTotalPages > 1">
+            <button class="page-btn" (click)="claimsPage = claimsPage - 1" [disabled]="claimsPage === 1">&#8592;</button>
+            <button class="page-btn" *ngFor="let p of pageRange(claimsTotalPages)" [class.active]="p === claimsPage" (click)="claimsPage = p">{{ p }}</button>
+            <button class="page-btn" (click)="claimsPage = claimsPage + 1" [disabled]="claimsPage === claimsTotalPages">&#8594;</button>
+            <span class="page-info">{{ claimsPage }} / {{ claimsTotalPages }}</span>
           </div>
         </div>
 
@@ -280,125 +287,152 @@ import { SharedModule } from '../../shared/shared.module';
       <!-- ══════════════ POLICIES TAB ══════════════ -->
       <div class="tab-content" *ngIf="view === 'policies'">
 
-        <!-- ── Insurance Products (Add / Edit / Delete) ── -->
-        <div class="surface-card">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">Insurance products</p>
-              <h3>Product catalogue ({{ products.length }})</h3>
-            </div>
-            <button type="button" class="primary-button small" (click)="toggleAddProduct()">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-              {{ showAddProduct ? 'Cancel' : 'Add product' }}
-            </button>
-          </div>
+        <div class="policies-layout">
 
-          <!-- Add product form -->
-          <div class="add-product-form" *ngIf="showAddProduct">
-            <div class="form-row two-col">
-              <label>
-                <span>Insurance type</span>
-                <input name="newTypeName" [(ngModel)]="newProduct.typeName" placeholder="e.g. Vehicle, Home, Health" />
-              </label>
-              <label>
-                <span>Sub-type / Plan name</span>
-                <input name="newSubTypeName" [(ngModel)]="newProduct.subTypeName" placeholder="e.g. Comprehensive, Apartment" />
-              </label>
-            </div>
-            <div class="form-row two-col">
-              <label>
-                <span>Base premium (₹/month)</span>
-                <input name="newBasePremium" [(ngModel)]="newProduct.basePremium" type="number" min="1" placeholder="e.g. 8000" />
-              </label>
-              <div class="form-action">
-                <button type="button" class="primary-button" (click)="createProduct()" [disabled]="productLoading || !newProduct.typeName || !newProduct.subTypeName || !newProduct.basePremium">
-                  {{ productLoading ? 'Saving...' : 'Save product' }}
-                </button>
-              </div>
-            </div>
-            <p class="action-error" *ngIf="productError">{{ productError }}</p>
-          </div>
-
-          <!-- Product list -->
-          <div class="product-table">
-            <div class="product-table-head">
-              <span>Type</span>
-              <span>Plan</span>
-              <span>Base premium</span>
-              <span>Actions</span>
-            </div>
-            <div class="product-row" *ngFor="let p of products">
-              <ng-container *ngIf="editingProductId !== p.productId">
-                <span class="type-badge">{{ p.typeName }}</span>
-                <span>{{ p.subTypeName }}</span>
-                <span class="premium-val">{{ p.basePremium | formatCurrency }}/mo</span>
-                <div class="row-actions">
-                  <button type="button" class="ghost-link" (click)="startEditProduct(p)">Edit</button>
-                  <button type="button" class="ghost-link danger-link" (click)="deleteProduct(p.productId)" [disabled]="productLoading">Delete</button>
-                </div>
-              </ng-container>
-              <ng-container *ngIf="editingProductId === p.productId">
-                <input [(ngModel)]="editProduct.typeName" placeholder="Type" class="inline-input" />
-                <input [(ngModel)]="editProduct.subTypeName" placeholder="Plan" class="inline-input" />
-                <input [(ngModel)]="editProduct.basePremium" type="number" placeholder="Premium" class="inline-input" />
-                <div class="row-actions">
-                  <button type="button" class="ghost-link" (click)="saveEditProduct(p.productId)" [disabled]="productLoading">Save</button>
-                  <button type="button" class="ghost-link" (click)="cancelEditProduct()">Cancel</button>
-                </div>
-              </ng-container>
-            </div>
-            <p class="muted" *ngIf="products.length === 0" style="padding: 1rem 0; text-align:center;">No products yet. Add one above.</p>
-          </div>
-        </div>
-
-        <!-- ── Customer Policies (status management) ── -->
-        <div class="surface-card">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">Customer policies</p>
-              <h3>All policies ({{ policies.length }})</h3>
-            </div>
-          </div>
-
-          <div class="policy-grid">
-            <article class="policy-card" *ngFor="let policy of policies" (click)="selectedPolicy = policy" [class.selected]="selectedPolicy?.policyId === policy.policyId">
-              <div class="policy-top">
-                <div>
-                  <strong>{{ policy.policyNumber }}</strong>
-                  <p>{{ policy.typeName }} / {{ policy.subTypeName }}</p>
-                </div>
-                <app-status-badge [value]="policy.status"></app-status-badge>
-              </div>
-              <div class="policy-meta">
-                <span>{{ policy.coverageAmount | formatCurrency }}</span>
-                <span>{{ policy.monthlyPremium | formatCurrency }}/mo</span>
-              </div>
-            </article>
-          </div>
-
-          <div class="action-card" *ngIf="selectedPolicy">
+          <!-- ── LEFT: Insurance Products ── -->
+          <div class="surface-card">
             <div class="section-head">
               <div>
-                <p class="eyebrow">Status update</p>
-                <h3>{{ selectedPolicy.policyNumber }}</h3>
+                <p class="eyebrow">Insurance products</p>
+                <h3>Catalogue ({{ products.length }})</h3>
               </div>
-              <app-status-badge [value]="selectedPolicy.status"></app-status-badge>
+              <button type="button" class="primary-button small" (click)="toggleAddProduct()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                {{ showAddProduct ? 'Cancel' : 'Add' }}
+              </button>
             </div>
-            <div class="form-row two-col">
-              <label>
-                <span>New status</span>
-                <select name="policyStatus" [(ngModel)]="policyStatus">
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="DRAFT">DRAFT</option>
-                  <option value="EXPIRED">EXPIRED</option>
-                  <option value="CANCELLED">CANCELLED</option>
-                </select>
-              </label>
-              <div class="form-action">
-                <button type="button" class="primary-button" (click)="updatePolicyStatus()">Update status</button>
+
+            <!-- Add product form -->
+            <div class="add-product-form" *ngIf="showAddProduct">
+              <div class="form-row">
+                <label><span>Insurance type</span>
+                  <input name="newTypeName" [(ngModel)]="newProduct.typeName" placeholder="e.g. Vehicle, Home" />
+                </label>
+              </div>
+              <div class="form-row">
+                <label><span>Sub-type / Plan name</span>
+                  <input name="newSubTypeName" [(ngModel)]="newProduct.subTypeName" placeholder="e.g. Maruti Suzuki" />
+                </label>
+              </div>
+              <div class="form-row">
+                <label><span>Base premium (₹/yr)</span>
+                  <input name="newBasePremium" [(ngModel)]="newProduct.basePremium" type="number" min="1" placeholder="e.g. 8000" />
+                </label>
+              </div>
+              <button type="button" class="primary-button" style="width:100%;margin-top:0.5rem"
+                (click)="createProduct()" [disabled]="productLoading || !newProduct.typeName || !newProduct.subTypeName || !newProduct.basePremium">
+                {{ productLoading ? 'Saving...' : 'Save product' }}
+              </button>
+              <p class="action-error" *ngIf="productError">{{ productError }}</p>
+            </div>
+
+            <!-- Product list -->
+            <div class="product-table">
+              <div class="product-table-head">
+                <span>Type</span>
+                <span>Plan</span>
+                <span>Premium</span>
+                <span></span>
+              </div>
+              <div class="product-row" *ngFor="let p of products">
+                <ng-container *ngIf="editingProductId !== p.productId">
+                  <span class="type-badge">{{ p.typeName }}</span>
+                  <span>{{ p.subTypeName }}</span>
+                  <span class="premium-val">{{ p.basePremium | formatCurrency }}</span>
+                  <div class="row-actions">
+                    <button type="button" class="ghost-link" (click)="startEditProduct(p)">Edit</button>
+                    <button type="button" class="ghost-link danger-link" (click)="deleteProduct(p.productId)" [disabled]="productLoading">Del</button>
+                  </div>
+                </ng-container>
+                <ng-container *ngIf="editingProductId === p.productId">
+                  <input [(ngModel)]="editProduct.typeName" placeholder="Type" class="inline-input" />
+                  <input [(ngModel)]="editProduct.subTypeName" placeholder="Plan" class="inline-input" />
+                  <input [(ngModel)]="editProduct.basePremium" type="number" placeholder="Premium" class="inline-input" />
+                  <div class="row-actions">
+                    <button type="button" class="ghost-link" (click)="saveEditProduct(p.productId)" [disabled]="productLoading">Save</button>
+                    <button type="button" class="ghost-link" (click)="cancelEditProduct()">✕</button>
+                  </div>
+                </ng-container>
+              </div>
+              <p class="muted" *ngIf="products.length === 0" style="padding:1rem 0;text-align:center;">No products yet.</p>
+            </div>
+          </div>
+
+          <!-- ── RIGHT: Customer Policies ── -->
+          <div class="surface-card">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Customer policies</p>
+                <h3>All policies ({{ filteredPolicies.length }})</h3>
+              </div>
+              <!-- Status filter -->
+              <div class="filter-chips">
+                <button type="button" [class.active]="policyFilter === 'ALL'"       (click)="policyFilter = 'ALL';       policiesPage = 1">All</button>
+                <button type="button" [class.active]="policyFilter === 'ACTIVE'"    (click)="policyFilter = 'ACTIVE';    policiesPage = 1">Active</button>
+                <button type="button" [class.active]="policyFilter === 'CANCELLED'" (click)="policyFilter = 'CANCELLED'; policiesPage = 1">Cancelled</button>
+                <button type="button" [class.active]="policyFilter === 'EXPIRED'"   (click)="policyFilter = 'EXPIRED';   policiesPage = 1">Expired</button>
+              </div>
+            </div>
+
+            <div class="policy-grid">
+              <article class="policy-card"
+                *ngFor="let policy of pagedPolicies"
+                (click)="selectedPolicy = policy; policyStatus = policy.status"
+                [class.selected]="selectedPolicy?.policyId === policy.policyId">
+                <div class="policy-top">
+                  <div>
+                    <strong>{{ policy.policyNumber }}</strong>
+                    <p>{{ policy.typeName }} / {{ policy.subTypeName }}</p>
+                  </div>
+                  <app-status-badge [value]="policy.status"></app-status-badge>
+                </div>
+                <div class="policy-owner">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  <span>{{ getUserName(policy.userId) }}</span>
+                  <span class="policy-owner-email">{{ getUserEmail(policy.userId) }}</span>
+                </div>
+                <div class="policy-meta">
+                  <span>{{ policy.coverageAmount | formatCurrency }}</span>
+                  <span>{{ policy.monthlyPremium | formatCurrency }}/mo</span>
+                </div>
+              </article>
+            </div>
+
+            <p class="muted" *ngIf="filteredPolicies.length === 0" style="padding:1rem 0;text-align:center;">No policies match this filter.</p>
+
+            <!-- Pagination -->
+            <div class="pagination" *ngIf="policiesTotalPages > 1">
+              <button class="page-btn" (click)="policiesPage = policiesPage - 1" [disabled]="policiesPage === 1">&#8592;</button>
+              <button class="page-btn" *ngFor="let p of pageRange(policiesTotalPages)" [class.active]="p === policiesPage" (click)="policiesPage = p">{{ p }}</button>
+              <button class="page-btn" (click)="policiesPage = policiesPage + 1" [disabled]="policiesPage === policiesTotalPages">&#8594;</button>
+              <span class="page-info">{{ policiesPage }} / {{ policiesTotalPages }}</span>
+            </div>
+
+            <!-- Inline status update for selected policy -->
+            <div class="action-card" *ngIf="selectedPolicy">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Update status</p>
+                  <h3>{{ selectedPolicy.policyNumber }}</h3>
+                </div>
+                <app-status-badge [value]="selectedPolicy.status"></app-status-badge>
+              </div>
+              <div class="form-row two-col">
+                <label>
+                  <span>New status</span>
+                  <select name="policyStatus" [(ngModel)]="policyStatus">
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="EXPIRED">EXPIRED</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                  </select>
+                </label>
+                <div class="form-action">
+                  <button type="button" class="primary-button" (click)="updatePolicyStatus()">Update</button>
+                </div>
               </div>
             </div>
           </div>
+
         </div>
       </div>
 
@@ -413,7 +447,7 @@ import { SharedModule } from '../../shared/shared.module';
           </div>
 
           <div class="user-grid">
-            <article class="user-card" *ngFor="let user of users">
+            <article class="user-card" *ngFor="let user of pagedUsers">
               <div class="user-info">
                 <div class="avatar">{{ user.fullName.charAt(0).toUpperCase() }}</div>
                 <div>
@@ -438,6 +472,14 @@ import { SharedModule } from '../../shared/shared.module';
               </div>
             </article>
           </div>
+
+          <!-- Users pagination -->
+          <div class="pagination" *ngIf="usersTotalPages > 1">
+            <button class="page-btn" (click)="usersPage = usersPage - 1" [disabled]="usersPage === 1">&#8592;</button>
+            <button class="page-btn" *ngFor="let p of pageRange(usersTotalPages)" [class.active]="p === usersPage" (click)="usersPage = p">{{ p }}</button>
+            <button class="page-btn" (click)="usersPage = usersPage + 1" [disabled]="usersPage === usersTotalPages">&#8594;</button>
+            <span class="page-info">{{ usersPage }} / {{ usersTotalPages }}</span>
+          </div>
         </div>
       </div>
 
@@ -452,7 +494,7 @@ import { SharedModule } from '../../shared/shared.module';
           </div>
 
           <div class="audit-list" *ngIf="auditLogs.length; else noAudit">
-            <article class="audit-card" *ngFor="let log of auditLogs">
+            <article class="audit-card" *ngFor="let log of pagedAuditLogs">
               <div class="audit-icon">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
               </div>
@@ -464,6 +506,14 @@ import { SharedModule } from '../../shared/shared.module';
             </article>
           </div>
           <ng-template #noAudit><p class="empty-state">No audit events recorded yet</p></ng-template>
+
+          <!-- Audit logs pagination -->
+          <div class="pagination" *ngIf="auditTotalPages > 1">
+            <button class="page-btn" (click)="auditPage = auditPage - 1" [disabled]="auditPage === 1">&#8592;</button>
+            <button class="page-btn" *ngFor="let p of pageRange(auditTotalPages)" [class.active]="p === auditPage" (click)="auditPage = p">{{ p }}</button>
+            <button class="page-btn" (click)="auditPage = auditPage + 1" [disabled]="auditPage === auditTotalPages">&#8594;</button>
+            <span class="page-info">{{ auditPage }} / {{ auditTotalPages }}</span>
+          </div>
         </div>
       </div>
 
@@ -534,6 +584,15 @@ import { SharedModule } from '../../shared/shared.module';
     .kpi-label { font-size: 0.78rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
     .kpi-value { display: block; font-size: 1.6rem; font-weight: 700; font-family: 'Space Grotesk', sans-serif; color: var(--ink); }
 
+    /* ── Policies two-column layout ── */
+    .policies-layout {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 1rem;
+      align-items: start;
+    }
+    @media (max-width: 1100px) { .policies-layout { grid-template-columns: 1fr; } }
+
     /* ── Dashboard grid ── */
     .dashboard-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
 
@@ -588,6 +647,14 @@ import { SharedModule } from '../../shared/shared.module';
     .claim-card p, .policy-card p, .user-card p, .audit-card p { color: var(--muted); margin-top: 0.2rem; font-size: 0.84rem; }
 
     .policy-top { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 0.6rem; }
+    .policy-owner {
+      display: flex; align-items: center; gap: 0.4rem;
+      font-size: 0.8rem; color: var(--muted); margin-bottom: 0.5rem;
+      font-weight: 500;
+    }
+    .policy-owner svg { flex-shrink: 0; color: var(--primary-2); }
+    .policy-owner span { color: var(--ink); font-weight: 600; }
+    .policy-owner-email { color: var(--muted) !important; font-weight: 400 !important; }
     .policy-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; }
     .policy-meta span { background: rgba(84, 101, 255, 0.06); padding: 0.25rem 0.55rem; border-radius: var(--radius-full); font-size: 0.78rem; font-weight: 500; color: var(--text); }
 
@@ -767,6 +834,22 @@ import { SharedModule } from '../../shared/shared.module';
     .role-select label { gap: 0.2rem; }
     .role-select select { padding: 0.45rem 0.7rem; font-size: 0.82rem; min-width: 110px; }
 
+    /* ── Pagination ── */
+    .pagination {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0.3rem; margin-top: 1.25rem; flex-wrap: wrap;
+    }
+    .page-btn {
+      min-width: 34px; height: 34px; border-radius: var(--radius-sm);
+      border: 1px solid rgba(84,101,255,0.15); background: transparent;
+      color: var(--muted); font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; transition: all 0.15s; padding: 0 0.5rem;
+    }
+    .page-btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); background: rgba(84,101,255,0.05); }
+    .page-btn.active { background: var(--primary); border-color: var(--primary); color: white; box-shadow: 0 2px 8px rgba(84,101,255,0.3); }
+    .page-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .page-info { font-size: 0.78rem; color: var(--muted); margin-left: 0.5rem; white-space: nowrap; }
+
     @media (max-width: 900px) {
       .kpi-strip { grid-template-columns: repeat(2, 1fr); }
       .dashboard-grid { grid-template-columns: 1fr; }
@@ -776,8 +859,9 @@ import { SharedModule } from '../../shared/shared.module';
   `]
 })
 export class AdminConsoleComponent implements OnInit {
+  private readonly PAGE_SIZE = 5;
+
   view: 'dashboard' | 'claims' | 'policies' | 'users' | 'audit' | 'reports' = 'dashboard';
-  stats: DashboardStatsDto | null = null;
   claims: ClaimDto[] = [];
   policies: PolicyDto[] = [];
   users: ProfileDto[] = [];
@@ -792,7 +876,8 @@ export class AdminConsoleComponent implements OnInit {
   policyStatus = 'ACTIVE';
   actionError = '';
   actionLoading = false;
-  claimFilter = 'ALL';
+  claimFilter  = 'ALL';
+  policyFilter = 'ALL';
 
   // ── Product management state ──
   showAddProduct = false;
@@ -802,6 +887,33 @@ export class AdminConsoleComponent implements OnInit {
   newProduct = { typeName: '', subTypeName: '', basePremium: 0 };
   editProduct = { typeName: '', subTypeName: '', basePremium: 0 };
 
+  // ── Pagination state ──────────────────────────────────────────────────
+  claimsPage   = 1;
+  policiesPage = 1;
+  usersPage    = 1;
+  auditPage    = 1;
+
+  // ── Pagination computed ───────────────────────────────────────────────
+  get claimsTotalPages():   number { return Math.max(1, Math.ceil(this.filteredClaims.length / this.PAGE_SIZE)); }
+  get policiesTotalPages(): number { return Math.max(1, Math.ceil(this.filteredPolicies.length / this.PAGE_SIZE)); }
+  get usersTotalPages():    number { return Math.max(1, Math.ceil(this.users.length        / this.PAGE_SIZE)); }
+  get auditTotalPages():    number { return Math.max(1, Math.ceil(this.auditLogs.length    / this.PAGE_SIZE)); }
+
+  get pagedClaims():    ClaimDto[]    { return this.paginate(this.filteredClaims, this.claimsPage); }
+  get pagedPolicies():  PolicyDto[]   { return this.paginate(this.filteredPolicies, this.policiesPage); }
+  get pagedUsers():     ProfileDto[]  { return this.paginate(this.users,          this.usersPage); }
+  get pagedAuditLogs(): AuditLogDto[] { return this.paginate(this.auditLogs,      this.auditPage); }
+
+  private paginate<T>(items: T[], page: number): T[] {
+    const start = (page - 1) * this.PAGE_SIZE;
+    return items.slice(start, start + this.PAGE_SIZE);
+  }
+
+  /** Returns [1..total] for *ngFor page number buttons. */
+  pageRange(total: number): number[] {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
   get pendingClaims(): ClaimDto[] {
     return this.claims.filter(c => c.status === 'SUBMITTED' || c.status === 'UNDER_REVIEW').slice(0, 5);
   }
@@ -809,6 +921,18 @@ export class AdminConsoleComponent implements OnInit {
   get filteredClaims(): ClaimDto[] {
     if (this.claimFilter === 'ALL') return this.claims;
     return this.claims.filter(c => c.status === this.claimFilter);
+  }
+
+  get filteredPolicies(): PolicyDto[] {
+    if (this.policyFilter === 'ALL') return this.policies;
+    return this.policies.filter(p => p.status === this.policyFilter);
+  }
+
+  /** Sum of monthly premiums across all active policies — used as the revenue KPI. */
+  get totalRevenue(): number {
+    return this.policies
+      .filter(p => p.status === 'ACTIVE')
+      .reduce((sum, p) => sum + p.monthlyPremium, 0);
   }
 
   selectClaim(claim: ClaimDto): void {
@@ -847,15 +971,13 @@ export class AdminConsoleComponent implements OnInit {
 
   private loadData(): void {
     forkJoin({
-      stats: this.adminService.getDashboardStats(),
       claims: this.claimsService.getAllClaimsForAdmin(),
       policies: this.policyService.getAllPoliciesForAdmin(),
       products: this.policyService.getProducts(),
       users: this.authService.getUsers(),
       auditLogs: this.adminService.getAuditLogs(undefined, undefined, undefined, undefined, 1, 10)
     }).subscribe({
-      next: ({ stats, claims, policies, products, users, auditLogs }) => {
-        this.stats = stats;
+      next: ({ claims, policies, products, users, auditLogs }) => {
         this.claims = claims;
         this.policies = policies;
         this.products = products;
@@ -1000,6 +1122,16 @@ export class AdminConsoleComponent implements OnInit {
     this.authService.updateUserRole(user.userId, newRole).subscribe({
       next: () => this.loadData()
     });
+  }
+
+  /** Returns the full name of the user who owns a policy, or a fallback. */
+  getUserName(userId: string): string {
+    return this.users.find(u => u.userId === userId)?.fullName ?? 'Unknown user';
+  }
+
+  /** Returns the email of the user who owns a policy, or empty string. */
+  getUserEmail(userId: string): string {
+    return this.users.find(u => u.userId === userId)?.email ?? '';
   }
 
   private syncRoute(): void {

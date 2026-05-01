@@ -3,21 +3,16 @@ import { Observable } from 'rxjs';
 import {
   AuditLogDto,
   ClaimsReportDto,
-  DashboardStatsDto,
   PagedResultDto,
   PolicyReportDto,
   RevenueReportDto
 } from '../../models/api-models';
 import { ApiService } from './api.service';
 
-/** Wraps admin dashboard, reports, and audit log API calls via the gateway. */
+/** Wraps admin reports and audit log API calls via the gateway. */
 @Injectable({ providedIn: 'root' })
 export class AdminService {
   constructor(private readonly api: ApiService) {}
-
-  getDashboardStats(): Observable<DashboardStatsDto> {
-    return this.api.get<DashboardStatsDto>('/admin/dashboard/stats');
-  }
 
   getPolicyReport(from?: string, to?: string, type?: string): Observable<PolicyReportDto> {
     return this.api.get<PolicyReportDto>('/admin/reports/policies', { from, to, type });
