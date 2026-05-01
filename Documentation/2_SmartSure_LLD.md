@@ -313,48 +313,48 @@ usecaseDiagram
 `
 
 ### 1.3 ClaimsService  ClaimsDb
-
-`mermaid
+```mermaid
 erDiagram
-    Claim {
-        Guid ClaimId PK
-        string ClaimNumber UK
-        Guid PolicyId
-        Guid UserId
-        string Description
-        decimal ClaimAmount
-        string Status
-        string AdminNote
-        Guid ReviewedBy
-        DateTime CreatedDate
-        DateTime SubmittedAt
-        DateTime ReviewedAt
-        DateTime UpdatedAt
+    User {
+        Guid UserId PK
+        string FullName
+        string Email UK
+        string PhoneNumber
+        string Address
+        bool IsActive
+        string GoogleSubject
+        DateTime CreatedAt
+        DateTime LastLoginAt
+        string RefreshToken
+        DateTime RefreshTokenExpiryTime
     }
-    ClaimDocument {
-        Guid DocId PK
-        Guid ClaimId FK
-        string FileName
-        string MegaNzFileId
-        string FileUrl
-        string FileType
-        int FileSizeKb
-        DateTime UploadedAt
+    Password {
+        Guid PassId PK
+        Guid UserId FK
+        string PasswordHash
     }
-    ClaimStatusHistory {
-        Guid HistoryId PK
-        Guid ClaimId FK
-        string OldStatus
-        string NewStatus
-        Guid ChangedBy
-        DateTime ChangedDate
-        string Note
+    Role {
+        Guid RoleId PK
+        string RoleName UK
+    }
+    UserRole {
+        Guid Id PK
+        Guid UserId FK
+        Guid RoleId FK
+    }
+    PasswordResetToken {
+        Guid Id PK
+        Guid UserId FK
+        string Token
+        DateTime ExpiresAt
+        bool IsUsed
     }
 
-    Claim ||--o{ ClaimDocument : "has"
-    Claim ||--o{ ClaimStatusHistory : "tracks"
-`
-
+    User ||--o{ UserRole : "has"
+    Role ||--o{ UserRole : "assigned to"
+    User ||--o| Password : "has"
+    User ||--o{ PasswordResetToken : "has"
+```
 ### 1.4 AdminService  AdminDb
 
 `mermaid
