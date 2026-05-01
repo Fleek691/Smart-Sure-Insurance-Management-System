@@ -94,7 +94,7 @@ erDiagram
 
 #### Class Diagram: PolicyService
 
-`mermaid
+```mermaid
 classDiagram
     class PoliciesController {
         -IPolicyService _policyService
@@ -169,7 +169,7 @@ classDiagram
     PolicyService --> PolicyEventPublisher
     RazorpayService --> PolicyRepository
     RazorpayService --> PolicyEventPublisher
-`
+```
 
 #### Sequence Diagram: Policy Purchase (Razorpay)
 
@@ -220,7 +220,7 @@ sequenceDiagram
 
 #### Sequence Diagram: Policy Cancellation
 
-`mermaid
+```mermaid
 sequenceDiagram
     actor Customer
     participant Angular
@@ -242,11 +242,11 @@ sequenceDiagram
     PolicyService-->>Gateway: PolicyDto { status: CANCELLED }
     Gateway-->>Angular: 200 OK
     Angular-->>Customer: Policy cancelled confirmation
-`
+```
 
 #### Use Case Diagram: PolicyService
 
-`mermaid
+```mermaid
 usecaseDiagram
     actor Customer
     actor Admin
@@ -259,7 +259,7 @@ usecaseDiagram
     Admin -- (Delete Product)
     Admin -- (View All Policies)
     Admin -- (Update Policy Status)
-`
+```
         decimal MonthlyPremium
         datetime CreatedAt
         datetime UpdatedAt
