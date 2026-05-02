@@ -313,15 +313,15 @@ graph TD
         ViewAllPolicies([View All Policies])
         UpdatePolicyStatus([Update Policy Status])
     end
-    Customer -- PurchasePolicy
-    Customer -- ViewMyPolicies
-    Customer -- CancelPolicy
-    Customer -- ViewPolicyDetails
-    Admin -- CreateProduct
-    Admin -- UpdateProduct
-    Admin -- DeleteProduct
-    Admin -- ViewAllPolicies
-    Admin -- UpdatePolicyStatus
+    Customer --> PurchasePolicy
+    Customer --> ViewMyPolicies
+    Customer --> CancelPolicy
+    Customer --> ViewPolicyDetails
+    Admin --> CreateProduct
+    Admin --> UpdateProduct
+    Admin --> DeleteProduct
+    Admin --> ViewAllPolicies
+    Admin --> UpdatePolicyStatus
 ```
 
 ### 1.3 ClaimsService  ClaimsDb
