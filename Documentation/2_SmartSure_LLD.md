@@ -909,34 +909,335 @@ stateDiagram-v2
 ---
 ## 5. Component & Layer Architecture
 
-...existing content...
+Each service follows clean layering with strict inward dependency flow:
+
+- API Layer: Controllers, request DTO binding, auth attributes, response shaping.
+- Application Layer: Services, orchestration, validation, idempotency checks.
+- Domain Layer: Entities, status rules, invariants, domain helpers.
+- Infrastructure Layer: Repositories, EF Core DbContext, external adapters (Razorpay, Email, Mega, RabbitMQ).
+- Cross-Cutting Layer (Shared): middleware, exception models, event contracts, common DTO wrappers.
+
+### 5.1 Service Internal Components
+
+IdentityService
+- Controllers: AuthController, UsersController.
+- Services: AuthService, JwtService, ProfileService, UserAdministrationService.
+- Repositories: UserRepository, RoleRepository.
+- Adapters: EmailService, GoogleAuthService.
+- Stores: SQL (users, roles, password reset), in-memory cache (OTP/session fragments).
+
+PolicyService
+- Controllers: PoliciesController.
+- Services: PolicyService, RazorpayService.
+- Repositories: PolicyRepository.
+- Publishers: PolicyEventPublisher.
+- Stores: SQL (product + policy + payment), in-memory cache (pending purchase, policy list snapshots).
+
+ClaimsService
+- Controllers: ClaimsController.
+- Services: ClaimService, ClaimAdminService, PolicyVerificationService.
+- Repositories: ClaimRepository.
+- Adapters: MegaStorageService.
+- Publishers: ClaimEventPublisher.
+- Stores: SQL (claims + documents + status history), file/object storage, in-memory cache.
+
+AdminService
+- Controllers: AdminController.
+- Services: AdminService.
+- Repositories: AdminRepository.
+- Consumers: AuditEventConsumer.
+- Stores: SQL (audit logs, report metadata), in-memory cache (dashboard/report snapshots).
+
+Gateway
+- Ocelot route mapping from /gateway/* to service APIs.
+- JWT validation and pass-through of user claims.
+- Centralized correlation id forwarding.
+
+### 5.2 Runtime Interaction Pattern
+
+- Client -> Gateway -> target service for synchronous request/response.
+- Service -> Database for transactional writes.
+- Service -> RabbitMQ publish for asynchronous propagation.
+- AdminService consumes events and writes audit timeline.
+- Cache sits beside services; cache invalidation occurs after state changes.
 
 ---
 ## 6. API Contract Details
 
-...existing content...
+### 6.1 Contract Rules
+
+- Base path style: /api/{resource} inside services, /gateway/{resource} at edge.
+- JSON only, UTF-8.
+- DateTime in ISO-8601 UTC.
+- Pagination shape: page, pageSize, totalCount, items.
+- Error envelope shared across services.
+
+### 6.2 Standard Response Envelope
+
+Success
+- success: true
+- message: human-readable summary
+- data: object or array
+- correlationId: request trace id
+
+Failure
+- success: false
+- message: stable top-level summary
+- errorCode: machine-readable code
+- details: field-level validation or business rule details
+- correlationId: request trace id
+
+### 6.3 Key Endpoint Contracts
+
+Identity
+- POST /gateway/auth/register
+    - Request: fullName, email, password, phoneNumber
+    - Response: message, expiresAtUtc
+- POST /gateway/auth/register/verify-otp
+    - Request: email, otp
+    - Response: token, refreshToken, expiresAtUtc, roles
+- POST /gateway/auth/login
+    - Request: email, password
+    - Response: token, refreshToken, expiresAtUtc, roles
+
+Policy
+- GET /gateway/policies/products
+    - Query: optional typeId
+    - Response: product list
+- POST /gateway/policies/payment/create-order
+    - Request: productId, coverageAmount, termMonths, insuranceDate
+    - Response: orderId, amountPaise, keyId, token
+- POST /gateway/policies/payment/verify
+    - Request: token, razorpayOrderId, razorpayPaymentId, razorpaySignature
+    - Response: activated policy summary
+
+Claims
+- POST /gateway/claims
+    - Request: policyId, description, claimAmount
+    - Response: draft claim
+- POST /gateway/claims/{id}/submit
+    - Rule: at least one document must exist
+    - Response: submitted claim
+- PUT /gateway/claims/admin/{id}/approve
+    - Request: approvedAmount, note
+    - Response: approved claim
+
+Admin
+- GET /gateway/admin/dashboard
+    - Response: counters and aggregates
+- GET /gateway/admin/audit-logs
+    - Query: from, to, action, actor, page, pageSize
+    - Response: paged audit rows
 
 ---
 ## 7. Database Schema Details
 
-...existing content...
+### 7.1 IdentityDb
+
+- User(UserId PK, Email UK, IsActive, RefreshToken, RefreshTokenExpiryTime, CreatedAt, LastLoginAt).
+- Password(PassId PK, UserId FK unique, PasswordHash).
+- Role(RoleId PK, RoleName UK).
+- UserRole(Id PK, UserId FK, RoleId FK, unique(UserId, RoleId)).
+- PasswordResetToken(Id PK, UserId FK, Token, ExpiresAt, IsUsed).
+
+Indexes
+- User.Email unique index.
+- User.RefreshToken non-clustered index.
+- PasswordResetToken(UserId, ExpiresAt) composite index.
+
+### 7.2 PolicyDb
+
+- InsuranceType(TypeId PK, TypeName UK).
+- InsuranceSubType(SubTypeId PK, TypeId FK, SubTypeName, BasePremium).
+- Policy(PolicyId PK, PolicyNumber UK, UserId, TypeId FK, SubTypeId FK, Status, InsuranceDate, EndDate, CoverageAmount, MonthlyPremium).
+- PolicyDetail(PolicyDetailId PK, PolicyId FK unique, Details).
+- VehicleDetail(VehicleId PK, PolicyId FK unique).
+- HomeDetail(HomeId PK, PolicyId FK unique).
+- Premium(PremiumId PK, PolicyId FK, Amount, DueDate, PaidAt, Status).
+- Payment(PaymentId PK, PolicyId FK, Amount, PaymentDate, PaymentMethod, TransactionRef, Status).
+
+Indexes
+- Policy(UserId, CreatedAt desc).
+- Policy(Status, EndDate).
+- Payment(TransactionRef) unique where non-null.
+
+### 7.3 ClaimsDb
+
+- Claim(ClaimId PK, ClaimNumber UK, PolicyId, UserId, Status, ClaimAmount, AdminNote, ReviewedBy, CreatedDate, SubmittedAt, ReviewedAt, UpdatedAt).
+- ClaimDocument(DocId PK, ClaimId FK, FileName, FileUrl, FileType, FileSizeKb, UploadedAt).
+- ClaimStatusHistory(HistoryId PK, ClaimId FK, OldStatus, NewStatus, ChangedBy, ChangedDate, Note).
+
+Indexes
+- Claim(UserId, CreatedDate desc).
+- Claim(PolicyId).
+- Claim(Status, SubmittedAt).
+- ClaimStatusHistory(ClaimId, ChangedDate desc).
+
+### 7.4 AdminDb
+
+- AuditLog(LogId PK, UserId, Action, EntityType, EntityId, Details, TimeStamp).
+- Report(ReportId PK, ReportType, GeneratedDate, UserId, PeriodFrom, PeriodTo, DataJson).
+
+Indexes
+- AuditLog(TimeStamp desc).
+- AuditLog(Action, TimeStamp).
+- Report(UserId, GeneratedDate desc).
 
 ---
 ## 8. Caching Design
 
-...existing content...
+### 8.1 Cache Technology and Scope
+
+- In-memory cache per service instance.
+- Cache used for short-lived, read-heavy, or replay-protection data.
+- Cache is non-authoritative; source of truth remains SQL.
+
+### 8.2 Cache Keys and TTL
+
+IdentityService
+- registration_otp_{email}: 10 minutes.
+- registration_pending_{email}: 10 minutes.
+- user_role_{userId}: 10 minutes.
+
+PolicyService
+- razorpay_pending_{token}: 30 minutes.
+- user_policies_{userId}: 5 minutes.
+- policy_{policyId}: 5 minutes.
+- products_all: 15 minutes.
+
+ClaimsService
+- claim_{claimId}: 3 minutes.
+- user_claims_{userId}: 3 minutes.
+
+AdminService
+- admin_dashboard: 2 minutes.
+- report_{reportId}: 10 minutes.
+
+### 8.3 Invalidation Rules
+
+- On successful write/update/delete, remove affected entity and list keys.
+- On policy activation/cancellation, remove user_policies_{userId} and policy_{policyId}.
+- On claim status change, remove claim_{claimId} and user_claims_{userId}.
+- Never rely on cache for authorization decisions.
 
 ---
 ## 9. Error Handling Design
 
-...existing content...
+### 9.1 Error Categories
+
+- Validation errors: malformed input, missing required fields.
+- Business rule errors: invalid state transitions, ownership violations.
+- Authentication/authorization errors: token invalid, role missing.
+- Integration errors: Razorpay/Mega/SMTP unavailable.
+- Persistence errors: deadlocks, unique key violations, timeout.
+
+### 9.2 HTTP Mapping
+
+- 400: validation failure.
+- 401: unauthenticated.
+- 403: authenticated but forbidden.
+- 404: resource not found.
+- 409: state conflict or duplicate.
+- 422: semantically invalid action.
+- 429: throttled.
+- 500: unhandled internal error.
+- 503: dependent service unavailable.
+
+### 9.3 Exception Pipeline
+
+- Global exception middleware catches all uncaught exceptions.
+- Domain exceptions map to known status and errorCode.
+- Validation exceptions include per-field details.
+- Unexpected exceptions return generic message, not stack traces.
+- Correlation id is attached to every error response and log entry.
+
+### 9.4 Retry and Compensation
+
+- Event publish failures are logged; primary transaction is not rolled back.
+- External integration retries use bounded retry policy with jitter.
+- Idempotency checks prevent duplicate policy activation and duplicate claim submission.
 
 ---
 ## 10. Security Design Details
 
-...existing content...
+### 10.1 Authentication and Token Model
+
+- JWT access token signed with symmetric key.
+- Access token short lifetime (for example 60 minutes).
+- Refresh token rotation on each refresh request.
+- Refresh token persisted with expiry and revoked on mismatch.
+
+### 10.2 Authorization
+
+- Role-based authorization via claims (CUSTOMER, ADMIN).
+- Endpoint-level authorize attributes for admin operations.
+- Ownership checks in services (user can only access own claims/policies unless admin).
+
+### 10.3 Data Protection
+
+- Password hashing with BCrypt.
+- Sensitive configuration loaded from environment or secure secret store.
+- No secrets or tokens in logs.
+- PII minimization in audit payloads.
+
+### 10.4 Transport and API Security
+
+- HTTPS enforced at gateway and internal ingress.
+- CORS restricted to trusted frontend origins.
+- Request size limits and file type validation for claim documents.
+- Rate limiting applied on auth and payment endpoints.
+- Security headers enabled at gateway.
+
+### 10.5 Operational Security
+
+- Correlation id and actor id in all audit logs.
+- Failed login and suspicious activity monitoring.
+- Time-bound OTP and one-time usage semantics.
 
 ---
 ## 11. RabbitMQ Event Contracts
 
-...existing content...
+### 11.1 Messaging Standards
+
+- Exchange type: topic.
+- Event name format: domain.entity.action.v1.
+- Content type: application/json.
+- Mandatory metadata: eventId, eventType, occurredAtUtc, correlationId, producer, version.
+- Delivery mode: persistent.
+
+### 11.2 Published Events
+
+UserRegisteredEvent
+- Trigger: successful registration OTP verification.
+- Payload: userId, email, fullName, roles, registeredAtUtc.
+
+PolicyActivatedEvent
+- Trigger: policy created as ACTIVE after direct flow or payment verification.
+- Payload: policyId, policyNumber, userId, productId, coverageAmount, activatedAtUtc.
+
+PolicyCancelledEvent
+- Trigger: customer or admin cancels active policy.
+- Payload: policyId, policyNumber, userId, cancelledBy, reason, cancelledAtUtc.
+
+ClaimSubmittedEvent
+- Trigger: draft claim moved to SUBMITTED.
+- Payload: claimId, claimNumber, policyId, userId, amount, submittedAtUtc.
+
+ClaimStatusChangedEvent
+- Trigger: admin changes claim status.
+- Payload: claimId, oldStatus, newStatus, changedBy, note, changedAtUtc.
+
+ClaimApprovedEvent
+- Trigger: claim approved.
+- Payload: claimId, approvedAmount, approvedBy, approvedAtUtc.
+
+ClaimRejectedEvent
+- Trigger: claim rejected.
+- Payload: claimId, rejectedBy, reason, rejectedAtUtc.
+
+### 11.3 Consumer Rules
+
+- Consumers are idempotent by eventId.
+- At-least-once delivery assumed.
+- Poison messages sent to dead-letter queue after retry threshold.
+- AdminService writes audit records for each consumed domain event.
